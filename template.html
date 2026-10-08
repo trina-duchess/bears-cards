@@ -56,7 +56,8 @@ header .in{max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:
 h1{font-family:var(--f-display);font-weight:900;font-size:clamp(30px,8vw,44px);line-height:.95;margin:0;letter-spacing:.01em;text-transform:uppercase;text-wrap:balance}
 h1 span{color:var(--orange)}
 .asof{font-family:var(--f-label);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#AEB8CC}
-.tabs{display:flex;gap:4px}
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}
+.tabs::-webkit-scrollbar{display:none}
 .tab{appearance:none;border:0;background:transparent;color:#AEB8CC;font-family:var(--f-label);font-weight:700;font-size:15px;letter-spacing:.08em;text-transform:uppercase;padding:10px 12px;cursor:pointer;border-radius:6px 6px 0 0;white-space:nowrap}
 .tab[aria-selected="true"]{background:var(--orange);color:#fff}
 .tab:focus-visible,button:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
@@ -165,6 +166,87 @@ h1 span{color:var(--orange)}
 .missed{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
 .missed span{background:var(--chip);border-radius:999px;padding:3px 10px;font-family:var(--f-label);font-weight:600;font-size:14px}
 
+/* Schedule view */
+.shead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.shead h2{font-family:var(--f-display);font-weight:800;text-transform:uppercase;font-size:26px;margin:0}
+.rec{font-family:var(--f-label);font-weight:700;font-size:15px;letter-spacing:.06em;color:var(--muted);font-variant-numeric:tabular-nums}
+.rec b{color:var(--orange);font-size:18px}
+.snav{display:flex;align-items:center;gap:10px}
+.spos{flex:1;text-align:center;font-family:var(--f-label);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sarrow{appearance:none;width:44px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-size:26px;line-height:1;cursor:pointer;flex:none}
+.sarrow:disabled{opacity:.3;cursor:default}
+.strack{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;scrollbar-width:none;overscroll-behavior-x:contain;margin-inline:-16px;padding-inline:16px;scroll-padding-inline:16px}
+.strack::-webkit-scrollbar{display:none}
+.gcard{flex:0 0 100%;scroll-snap-align:start;background:var(--card-front);color:#fff;border-radius:16px;padding:16px 18px 18px;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden;min-width:0}
+.gcard::before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:var(--orange)}
+.gtop{display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:var(--f-label);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:14px;margin-top:4px}
+.gtop .wk{color:#AEB8CC}
+.gpill{padding:3px 10px;border-radius:999px;font-size:12px;background:rgba(255,255,255,.12);color:#fff;white-space:nowrap}
+.gpill.next{background:var(--orange)}
+.gpill.live{background:#B00020}
+.gpill.W{background:var(--good)} .gpill.L{background:#7A1F1F} .gpill.T{background:#56607A}
+.gmain{display:flex;align-items:center;gap:14px}
+.glogo{width:76px;height:76px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden}
+.glogo img{width:84%;height:84%;object-fit:contain}
+.glogo span{font-family:var(--f-display);font-weight:900;font-size:24px;color:#0B162A}
+.gvs{font-family:var(--f-label);font-weight:700;font-size:14px;letter-spacing:.1em;color:#AEB8CC}
+.gopp{font-family:var(--f-display);font-weight:800;font-size:clamp(28px,8vw,40px);line-height:.95;text-transform:uppercase;text-wrap:balance}
+.gwhen{display:flex;flex-direction:column;gap:2px;border-top:1px solid rgba(255,255,255,.15);padding-top:10px}
+.gdate{font-family:var(--f-label);font-weight:700;font-size:20px;letter-spacing:.03em}
+.gtime{font-family:var(--f-display);font-weight:800;font-size:34px;line-height:1;color:var(--orange);font-variant-numeric:tabular-nums}
+.gtime small{font-family:var(--f-label);font-size:15px;font-weight:700;color:#AEB8CC;margin-left:6px;letter-spacing:.06em}
+.gscore{font-family:var(--f-display);font-weight:900;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.ginfo{display:flex;flex-direction:column;gap:6px;font-size:15px}
+.ginfo div{display:flex;gap:10px}
+.ginfo .k{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#AEB8CC;width:64px;flex:none;padding-top:2px}
+.ginfo .v{min-width:0}
+.glinks{display:flex;flex-wrap:wrap;gap:8px}
+.ginfo .v:has(.tvnet){display:flex;flex-direction:column;gap:6px}
+.tvnet{display:flex;flex-direction:column}
+.tvnet b{font-weight:700}
+.tvnet i{font-style:normal;color:#AEB8CC;font-size:13px;margin-left:4px}
+.tvnet b + i{display:inline}
+.tvch{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:3px;font-size:13px;color:#C9D1E0;font-variant-numeric:tabular-nums}
+.tvch>span{background:rgba(255,255,255,.09);border-radius:6px;padding:2px 7px;white-space:nowrap}
+.tvch b{color:#fff;font-weight:700}
+.glinks a{font-family:var(--f-label);font-weight:700;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:7px 12px}
+.glinks a.buy{background:var(--orange);border-color:var(--orange)}
+.gbye{align-items:center;justify-content:center;text-align:center;min-height:260px}
+.gbye .gopp{font-size:56px}
+.snow{padding:10px;font-size:15px}
+.gpill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#fff;margin-right:6px;vertical-align:1px;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){.gpill .dot{animation:none}}
+.gcard.islive{box-shadow:0 0 0 3px #B00020 inset}
+.glive{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin-top:4px}
+.gl-team{display:flex;align-items:baseline;gap:8px;font-family:var(--f-label);font-weight:700;font-size:16px;letter-spacing:.06em;color:#AEB8CC}
+.gl-team:last-child{justify-content:flex-end}
+.gl-team b{font-family:var(--f-display);font-weight:900;font-size:48px;line-height:1;color:#fff;font-variant-numeric:tabular-nums}
+.gl-team.poss span::after{content:" ●";color:var(--orange);font-size:12px}
+.gl-mid{font-family:var(--f-label);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--orange);text-align:center;white-space:nowrap}
+.gsit{font-family:var(--f-label);font-weight:600;font-size:15px;color:#fff;letter-spacing:.03em}
+.gsit em{font-style:normal;color:var(--orange);margin-left:6px}
+.glast{font-size:14px;color:#C9D1E0;line-height:1.35}
+.gupd{font-size:12px;color:#7F8BA6}
+
+.slist{display:flex;flex-direction:column;background:#0B162A;border-radius:12px;overflow:hidden;border:1px solid #0B162A}
+.srow{appearance:none;border:0;border-bottom:1px solid rgba(255,255,255,.1);border-left:4px solid transparent;background:#0B162A;color:#fff;font:inherit;text-align:left;cursor:pointer;display:grid;grid-template-columns:44px 32px minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 14px 9px 10px}
+.srow:nth-of-type(even){background:#13213B}
+.srow:last-child{border-bottom:0}
+.srow:hover{background:#1B2C4D}
+.srow.cur{background:#1F3358;border-left-color:#C83803}
+.srow .wk{font-family:var(--f-label);font-weight:700;font-size:13px;color:#E2541B;letter-spacing:.04em;white-space:nowrap}
+.srow .lg{width:32px;height:32px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.srow .lg img{width:84%;height:84%;object-fit:contain}
+.srow .lg span{font-size:10px;font-weight:700;color:#0B162A}
+.srow .op{font-weight:600;font-size:15px;line-height:1.2;min-width:0;color:#fff}
+.srow .op small{display:block;font-weight:400;font-size:13px;color:#AEB8CC}
+.srow .rs{font-family:var(--f-label);font-weight:700;font-size:15px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:#fff}
+.srow .rs.W{color:#5FD68E} .srow .rs.L{color:#FF8A65} .srow .rs.T{color:#AEB8CC}
+.srow .rs.live{color:#FF6B6B}
+.slist .sec{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;padding:7px 14px;background:#C83803}
+.snote{margin:0;font-size:13px;color:var(--muted)}
+
 /* Depth chart view */
 .unit h2{font-family:var(--f-display);font-weight:800;text-transform:uppercase;font-size:26px;margin:6px 0 8px;display:flex;align-items:center;gap:10px}
 .unit h2::after{content:"";flex:1;height:3px;background:var(--orange)}
@@ -212,15 +294,29 @@ html{background:#0B162A!important}body{min-height:100vh}
       <div class="asof" id="asof"></div>
     </div>
     <div class="tabs" role="tablist">
-      <button class="tab" id="tab-cards" role="tab" aria-selected="true">Flashcards</button>
+      <button class="tab" id="tab-sched" role="tab" aria-selected="true">Schedule</button>
+      <button class="tab" id="tab-cards" role="tab" aria-selected="false">Cards</button>
       <button class="tab" id="tab-roster" role="tab" aria-selected="false">Roster</button>
-      <button class="tab" id="tab-chart" role="tab" aria-selected="false">Depth chart</button>
+      <button class="tab" id="tab-chart" role="tab" aria-selected="false">Depth</button>
     </div>
   </div>
 </header>
 
 <div class="wrap">
-  <section id="view-cards" style="display:flex;flex-direction:column;gap:16px">
+  <section id="view-sched" style="display:flex;flex-direction:column;gap:14px">
+    <div class="shead"><h2 id="stitle">Schedule</h2><span class="rec" id="srec"></span></div>
+    <div class="snav">
+      <button class="sarrow" id="sprev" type="button" aria-label="Previous game">‹</button>
+      <div class="spos" id="spos"></div>
+      <button class="sarrow" id="snext" type="button" aria-label="Next game">›</button>
+    </div>
+    <div class="strack" id="strack"></div>
+    <button class="btn ghost snow" id="snow" type="button">Jump to next game</button>
+    <div class="slist" id="slist"></div>
+    <p class="snote">Times are Pacific. Game times can change when the NFL flexes the schedule. Live scores come from ESPN and refresh every 30 seconds during games.</p>
+  </section>
+
+  <section id="view-cards" hidden style="flex-direction:column;gap:16px">
     <div><button class="fbar" id="ftoggle" type="button" aria-expanded="false" aria-controls="controls"><span class="fl">Filters</span><span class="fs" id="fsum"></span><span class="chev">▼</span></button></div>
     <div class="controls" id="controls" hidden>
       <div class="row"><span class="lbl">Deck</span><div class="seg" id="seg-deck"></div></div>
@@ -498,7 +594,224 @@ function openCard(slug, row){
   row.setAttribute("aria-expanded","true");
 }
 
-const VIEWS=["cards","roster","chart"];
+// ---------- Schedule view ----------
+const PT = "America/Los_Angeles";
+const SCHED = (DATA.schedule || []).slice().sort((a,b)=>{
+  const so=x=>({PRE:0,REG:1,POST:2}[x.season]??1);
+  if (so(a)!==so(b)) return so(a)-so(b);
+  const wn=x=>parseInt(String(x.week).replace(/\D/g,""))||0;
+  return a.season==="POST" && a.kickoff && b.kickoff ? new Date(a.kickoff)-new Date(b.kickoff) : wn(a)-wn(b);
+});
+const fmt = (d,o) => new Intl.DateTimeFormat("en-US",{timeZone:PT,...o}).format(d);
+// ----- Live scores and late results (ESPN's public scoreboard feed) -----
+// The weekly update fills in final scores twice a week. While the page is open, ESPN's feed
+// fills in any result that is newer than that, and keeps a game in progress up to date.
+const isBears = c => (c?.team?.abbreviation||"").toUpperCase()==="CHI";
+const espnScore = c => { const s=c?.score; if (s==null||s==="") return null; const v = typeof s==="object" ? (s.displayValue ?? s.value) : s; const n=parseInt(v,10); return isNaN(n)?null:n; };
+function applyEspnEvent(ev){
+  const comp=ev?.competitions?.[0]; if(!comp) return false;
+  const us=(comp.competitors||[]).find(isBears), them=(comp.competitors||[]).find(c=>!isBears(c)); if(!us||!them) return false;
+  const t=new Date(comp.date||ev.date).getTime();
+  const g=SCHED.find(x=>x.kickoff && !x.bye && Math.abs(new Date(x.kickoff).getTime()-t)<6*3600e3);
+  if(!g || g.final) return false;
+  const st=comp.status?.type||ev.status?.type||{}, sit=comp.situation||{};
+  const poss = sit.possession ? (String(sit.possession)===String(us.team?.id)?"CHI":(them.team?.abbreviation||"")) : "";
+  g._live = { state:st.state, detail:st.shortDetail||st.detail||"", bears:espnScore(us), opp:espnScore(them),
+    oppAbbr:them.team?.abbreviation||"", poss, down:sit.downDistanceText||"", last:sit.lastPlay?.text||"", redzone:!!sit.isRedZone, at:Date.now() };
+  return true;
+}
+const liveFinal = g => !g.final && g._live && g._live.state==="post" && g._live.bears!=null && g._live.opp!=null;
+const resultOf = g => g.final ? g.result : liveFinal(g) ? (g._live.bears>g._live.opp?"W":g._live.bears<g._live.opp?"L":"T") : "";
+const scoreOf  = g => g.final ? g.score : liveFinal(g) ? `${g._live.bears} - ${g._live.opp}` : "";
+
+function gameState(g){
+  if (g.bye) return "bye";
+  if (g.final || liveFinal(g)) return "final";
+  if (g._live && g._live.state==="in") return "live";
+  if (g.kickoff && Date.now() > new Date(g.kickoff).getTime()) return Date.now() - new Date(g.kickoff).getTime() < 5*3600e3 ? "live" : "awaiting";
+  return "upcoming";
+}
+function nextIndex(){
+  let i = SCHED.findIndex(g=>!g.bye && gameState(g)==="live");
+  if (i<0) i = SCHED.findIndex(g=>!g.bye && gameState(g)==="upcoming");
+  if (i<0) i = SCHED.findIndex(g=>!g.bye && gameState(g)==="awaiting");
+  if (i<0) { for (let k=SCHED.length-1;k>=0;k--) if (!SCHED[k].bye) { i=k; break; } }
+  return Math.max(0,i);
+}
+const seasonLabel = s => ({PRE:"Preseason",REG:"Regular season",POST:"Postseason"}[s]||"");
+const weekLabel = g => `${g.season==="PRE"?"Pre ":""}${String(g.week).replace(/^WEEK/i,"Week")}`;
+const weekNum = g => parseInt(String(g.week).replace(/\D/g,""))||0;
+const logoHTML = g => g.logo ? `<img src="${esc(g.logoData||g.logo)}" referrerpolicy="no-referrer" alt="${esc(g.oppFull||g.opp)} logo" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${esc((g.logo.split('/').pop()||'').slice(0,3))}'}))">` : `<span>${esc((g.opp||"").slice(0,3).toUpperCase())}</span>`;
+function untilText(g){
+  const ms=new Date(g.kickoff)-Date.now(); if (ms<0) return "";
+  const d=Math.floor(ms/864e5), h=Math.floor(ms%864e5/36e5);
+  return d>0 ? `in ${d} day${d>1?"s":""}` : h>0 ? `in ${h} hr${h>1?"s":""}` : "starting soon";
+}
+
+// ----- Where to watch (Portland, Oregon market) -----
+// Local stations: FOX = KPTV, CBS = KOIN, NBC = KGW, ABC = KATU. Cable and satellite numbers below.
+// To change a number, edit this table.
+const TV_CH = {
+  "FOX":  {station:"KPTV", xfinity:"12 · HD 712", dish:"12", directv:"12"},
+  "CBS":  {station:"KOIN", xfinity:"6 · HD 706",  dish:"6",  directv:"6"},
+  "NBC":  {station:"KGW",  xfinity:"8 · HD 708",  dish:"8",  directv:"8"},
+  "ABC":  {station:"KATU", xfinity:"2 · HD 702",  dish:"2",  directv:"2"},
+  "ESPN": {xfinity:"35 · HD 735", dish:"140", directv:"206"},
+  "ESPN2":{xfinity:"36 · HD 736", dish:"143", directv:"209"},
+};
+const STREAMING = /prime|netflix|peacock|espn\+|paramount|youtube|apple|amazon/i;
+function tvHTML(tv){
+  if(!tv) return "";
+  const nets=tv.split(/\s*[•·|,]\s*/).map(x=>x.trim()).filter(Boolean)
+    .filter(x=>!/deportes|universo|espa/i.test(x)); // Spanish-language feeds left out
+  const out=nets.map(n=>{
+    const key=n.toUpperCase().replace(/\s+/g,"");
+    const c=TV_CH[key];
+    if (c) return `<span class="tvnet"><span><b>${esc(n)}</b>${c.station?` <i>${c.station}</i>`:""}</span><span class="tvch"><span>Xfinity <b>${esc(c.xfinity).replace(" · HD ","</b> / HD <b>")}</b></span><span>DISH <b>${esc(c.dish)}</b></span><span>DirecTV <b>${esc(c.directv)}</b></span></span></span>`;
+    if (STREAMING.test(n)) return `<span class="tvnet"><b>${esc(n.replace(/^NETFLIX$/,"Netflix"))}</b><span class="tvch"><span>Streaming only</span></span></span>`;
+    return `<span class="tvnet"><b>${esc(n)}</b></span>`;
+  });
+  return out.join("");
+}
+
+function scoreboardHTML(g){
+  const L=g._live||{};
+  const b=L.bears??"–", o=L.opp??"–", abbr=L.oppAbbr||(g.logo||"").split("/").pop()||"OPP";
+  return `<div class="glive">
+      <div class="gl-team${L.poss==="CHI"?" poss":""}"><span>CHI</span><b>${esc(b)}</b></div>
+      <div class="gl-mid">${esc(L.detail||"In progress")}</div>
+      <div class="gl-team${L.poss&&L.poss!=="CHI"?" poss":""}"><b>${esc(o)}</b><span>${esc(abbr)}</span></div>
+    </div>
+    ${L.down?`<div class="gsit">${L.poss?esc(L.poss)+" ball · ":""}${esc(L.down)}${L.redzone?' <em>Red zone</em>':""}</div>`:""}
+    ${L.last?`<div class="glast">${esc(L.last)}</div>`:""}
+    ${L.at?`<div class="gupd">Updated ${fmt(new Date(L.at),{hour:"numeric",minute:"2-digit",second:"2-digit"})}</div>`:`<div class="gupd">Live score loading…</div>`}`;
+}
+
+function gameCard(g,i,nextI){
+  if (g.bye) return `<article class="gcard gbye" data-i="${i}"><div class="gtop" style="align-self:stretch"><span class="wk">${esc(weekLabel(g))}</span></div><div class="gopp">Bye week</div><p style="margin:0;color:#AEB8CC">No game this week.</p></article>`;
+  const st=gameState(g), k=g.kickoff?new Date(g.kickoff):null, res=resultOf(g);
+  const pill = st==="final" ? `<span class="gpill ${esc(res)}">${res==="W"?"Win":res==="L"?"Loss":res==="T"?"Tie":"Final"}</span>`
+    : st==="live" ? `<span class="gpill live"><i class="dot"></i>Live</span>` : i===nextI ? `<span class="gpill next">Next game</span>` : st==="awaiting" ? `<span class="gpill">Result pending</span>` : "";
+  const when = !k ? `<div class="gdate">Date and time TBD</div>`
+    : `<div class="gdate">${fmt(k,{weekday:"long",month:"short",day:"numeric",year:"numeric"})}</div>`
+      + (st==="final" ? `<div class="gscore">${esc(scoreOf(g))}</div>`
+        : st==="live" ? scoreboardHTML(g)
+        : `<div class="gtime">${fmt(k,{hour:"numeric",minute:"2-digit"})}<small>${fmt(k,{timeZoneName:"short"}).split(" ").pop()}${st==="upcoming"?" · "+untilText(g):""}</small></div>`);
+  const tv=tvHTML(g.tv);
+  const rows=(tv?`<div><span class="k">TV</span><span class="v">${tv}</span></div>`:"") + (g.venue?`<div><span class="k">Venue</span><span class="v">${esc(g.venue)}</span></div>`:"");
+  const links=(g.links||[]).filter(l=>!/ticket|watch|listen/i.test(l.label)).map(l=>`<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("");
+  return `<article class="gcard${st==="live"?" islive":""}" data-i="${i}">
+    <div class="gtop"><span class="wk">${esc(weekLabel(g).replace("Pre ","Preseason "))}${g.season==="POST"?" · Playoffs":""}</span>${pill}</div>
+    <div class="gmain"><div class="glogo">${logoHTML(g)}</div><div style="min-width:0"><div class="gvs">${g.homeAway==="AT"?"AT":"VS"} · ${g.homeAway==="AT"?"Away":"Home"}</div><div class="gopp">${esc(g.oppFull||g.opp)}</div></div></div>
+    <div class="gwhen">${when}</div>
+    ${rows?`<div class="ginfo">${rows}</div>`:""}
+    ${links?`<div class="glinks">${links}</div>`:""}
+  </article>`;
+}
+let schedCur=0;
+function listHTML(){
+  let last="";
+  return SCHED.map((g,i)=>{
+    const head = g.season!==last ? `<div class="sec">${seasonLabel(g.season)}</div>` : ""; last=g.season;
+    if (g.bye) return head+`<button class="srow" type="button" data-i="${i}"><span class="wk">${esc(weekLabel(g).replace("Week ","Wk "))}</span><span></span><span class="op">Bye</span><span></span></button>`;
+    const st=gameState(g), k=g.kickoff?new Date(g.kickoff):null, res=resultOf(g);
+    const rs = st==="final" ? `<span class="rs ${esc(res)}">${esc(res)} ${esc(scoreOf(g))}</span>`
+      : st==="live" ? `<span class="rs live">${g._live&&g._live.bears!=null?`${g._live.bears} - ${g._live.opp}`:"Live"}</span>`
+      : `<span class="rs">${k?fmt(k,{hour:"numeric",minute:"2-digit"}):"TBD"}</span>`;
+    return head+`<button class="srow" type="button" data-i="${i}"><span class="wk">${esc(weekLabel(g).replace("Pre Week ","Pre ").replace("Week ","Wk "))}</span><span class="lg">${logoHTML(g)}</span><span class="op">${g.homeAway==="AT"?"at ":"vs "}${esc(g.opp)}<small>${k?fmt(k,{weekday:"short",month:"short",day:"numeric"}):"Date TBD"}</small></span>${rs}</button>`;
+  }).join("");
+}
+function renderRecord(){
+  const reg=SCHED.filter(g=>g.season==="REG"&&gameState(g)==="final"), c=r=>reg.filter(g=>resultOf(g)===r).length;
+  const w=c("W"), l=c("L"), t=c("T");
+  document.getElementById("stitle").textContent = `${DATA.season} Schedule`;
+  document.getElementById("srec").innerHTML = reg.length ? `Record <b>${w}-${l}${t?"-"+t:""}</b>` : "";
+}
+function renderList(){
+  const list=document.getElementById("slist");
+  list.innerHTML=listHTML();
+  list.querySelectorAll(".srow").forEach(b=>b.onclick=()=>{ goGame(+b.dataset.i, true); });
+  renderRecord();
+  setCur(schedCur);
+}
+function renderSchedule(){
+  const track=document.getElementById("strack");
+  if (!SCHED.length){ track.innerHTML=`<article class="gcard gbye"><div class="gopp">Schedule unavailable</div></article>`; return; }
+  const nextI=nextIndex();
+  track.innerHTML=SCHED.map((g,i)=>gameCard(g,i,nextI)).join("");
+  schedCur=nextI; renderList();
+  goGame(nextI,false);
+}
+// Redraw cards in place (keeps the carousel where it is), then the list and record.
+function refreshSchedule(follow){
+  const track=document.getElementById("strack"), nextI=nextIndex();
+  SCHED.forEach((g,i)=>{ const el=track.children[i]; if(!el) return; const html=gameCard(g,i,nextI); if(el.outerHTML!==html) el.outerHTML=html; });
+  renderList();
+  if (follow) goGame(nextI,false);
+}
+function goGame(i,smooth){
+  const track=document.getElementById("strack"); const c=track.children[i]; if(!c) return;
+  track.scrollTo({left:c.offsetLeft-track.offsetLeft-16+16*0, behavior:smooth?"smooth":"auto"});
+  setCur(i);
+  if (smooth) track.scrollIntoView({block:"nearest",behavior:"smooth"});
+}
+function setCur(i){
+  schedCur=i;
+  const g=SCHED[i];
+  document.getElementById("spos").textContent = g ? `${weekLabel(g)} · ${i+1} of ${SCHED.length}` : "";
+  document.getElementById("sprev").disabled = i<=0;
+  document.getElementById("snext").disabled = i>=SCHED.length-1;
+  document.querySelectorAll("#slist .srow").forEach(r=>r.classList.toggle("cur",+r.dataset.i===i));
+  const n=nextIndex();
+  document.getElementById("snow").hidden = i===n;
+  document.getElementById("snow").textContent = gameState(SCHED[n]||{})==="live" ? "Jump to live game" : "Jump to next game";
+}
+
+const ESPN="https://site.api.espn.com/apis/site/v2/sports/football/nfl";
+async function getJSON(url){ const r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error(r.status); return r.json(); }
+const etDate = d => new Intl.DateTimeFormat("en-CA",{timeZone:"America/New_York",year:"numeric",month:"2-digit",day:"2-digit"}).format(d).replace(/-/g,"");
+let userMoved=false;
+async function catchUpResults(){
+  // Fill in results for games played since the last weekly update.
+  if (!SCHED.some(g=>!g.bye && !g.final && g.kickoff && Date.now()>new Date(g.kickoff).getTime())) return;
+  try {
+    for (const t of [2,3]) {
+      const j=await getJSON(`${ESPN}/teams/chi/schedule?season=${DATA.season}&seasontype=${t}`);
+      (j.events||[]).forEach(applyEspnEvent);
+    }
+    refreshSchedule(!userMoved);
+  } catch(e) { /* offline or feed unavailable: keep the weekly data */ }
+}
+function liveWindowGame(){
+  const now=Date.now();
+  return SCHED.find(g=>g.kickoff && !g.bye && !g.final && !liveFinal(g) && now>new Date(g.kickoff).getTime()-20*60e3 && now<new Date(g.kickoff).getTime()+6*3600e3);
+}
+async function pollLive(){
+  const g=liveWindowGame(); if(!g) return;
+  try {
+    const j=await getJSON(`${ESPN}/scoreboard?dates=${etDate(new Date(g.kickoff))}`);
+    (j.events||[]).forEach(applyEspnEvent);
+    refreshSchedule(!userMoved);
+  } catch(e) {}
+}
+setInterval(()=>{ if(!document.hidden) pollLive(); }, 30000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ pollLive(); catchUpResults(); } });
+
+(()=>{
+  const track=document.getElementById("strack"); let to;
+  track.addEventListener("touchstart",()=>{userMoved=true;},{passive:true});
+  track.addEventListener("scroll",()=>{ clearTimeout(to); to=setTimeout(()=>{
+    const x=track.scrollLeft; let best=0,bd=1e9;
+    [...track.children].forEach((c,i)=>{const d=Math.abs(c.offsetLeft-track.offsetLeft-16-x+16); if(d<bd){bd=d;best=i;}});
+    setCur(best);
+  },80); },{passive:true});
+  document.getElementById("sprev").onclick=()=>{userMoved=true;goGame(Math.max(0,schedCur-1),true);};
+  document.getElementById("snext").onclick=()=>{userMoved=true;goGame(Math.min(SCHED.length-1,schedCur+1),true);};
+  document.getElementById("snow").onclick=()=>{userMoved=false;goGame(nextIndex(),true);};
+  let rt; window.addEventListener("resize",()=>{ clearTimeout(rt); rt=setTimeout(()=>goGame(schedCur,false),120); });
+})();
+
+const VIEWS=["sched","cards","roster","chart"];
 function tab(which){
   VIEWS.forEach(v=>{
     const on=v===which;
@@ -510,6 +823,7 @@ function tab(which){
 VIEWS.forEach(v=>document.getElementById("tab-"+v).onclick=()=>tab(v));
 
 renderControls();renderChart();renderRoster();startDeck();
+tab("sched"); renderSchedule(); catchUpResults(); pollLive();
 document.querySelectorAll("#view-chart .plink").forEach(b=>b.onclick=()=>{
   const k=b.dataset.slug; tab("roster");
   const row=document.querySelector(`.rrow[data-slug="${k}"]`);

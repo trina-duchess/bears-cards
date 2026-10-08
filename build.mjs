@@ -10,8 +10,10 @@ const decode = s => s
   .replace(/&#x([0-9a-f]+);/gi, (m, n) => String.fromCharCode(parseInt(n, 16)))
   .replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n))
   .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-  .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
-const text = h => decode(h.replace(/<!--[\s\S]*?-->/g, "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+  .replace(/&nbsp;/g, " ").replace(/&middot;/g, "·").replace(/&bull;/g, "•").replace(/&ndash;/g, "–").replace(/&mdash;/g, "—")
+  .replace(/&rsquo;/g, "’").replace(/&lsquo;/g, "‘").replace(/&eacute;/g, "é").replace(/&ntilde;/g, "ñ").replace(/&amp;/g, "&");
+// Decoded twice because the team site sometimes double-escapes (e.g. "&amp;bull;").
+const text = h => decode(decode(h.replace(/<!--[\s\S]*?-->/g, "").replace(/<[^>]+>/g, " "))).replace(/\s+/g, " ").trim();
 const slugOf = h => { const m = h.match(/players-roster\/([^\/"?#]+)/); return m ? m[1] : null; };
 const tables = html => [...html.matchAll(/<table\b([^>]*)>([\s\S]*?)<\/table>/gi)].map(m => ({ attrs: m[1], body: m[2] }));
 const rows = body => [...body.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map(m =>
@@ -86,6 +88,39 @@ function parseStats(html) {
   }
   return stats;
 }
+function parseSchedule(html) {
+  const games = [];
+  // Section headings ("REGULAR SEASON", "PRESEASON", "POSTSEASON") followed by matchup cards.
+  const marks = [...html.matchAll(/<h2[^>]*d3-o-section-title[^>]*>\s*<span>\s*([^<]+?)\s*<\/span>/gi)].map(m => ({ i: m.index, name: m[1].trim() }));
+  const starts = [...html.matchAll(/<div class="nfl-o-matchup-cards[ "]/g)].map(m => m.index);
+  starts.forEach((s, k) => {
+    const chunk = html.slice(s, starts[k + 1] ?? s + 20000);
+    const sec = marks.filter(m => m.i < s).pop();
+    const section = sec ? sec.name.toUpperCase() : "";
+    const sType = /PRE/.test(section) ? "PRE" : /POST/.test(section) ? "POST" : "REG";
+    const week = text((chunk.match(/<strong>([\s\S]*?)<\/strong>/) || [])[1] || "");
+    if (/--bye/.test(chunk.slice(0, 200))) { games.push({ season: sType, week, bye: true }); return; }
+    const pick = re => { const m = chunk.match(re); return m ? text(m[1]) : ""; };
+    const gt = (chunk.match(/data-gametime="([^"]*)"/) || [])[1] || "";
+    let kickoff = null;
+    const g = gt.match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):\d{2} ([+-]\d{2}):(\d{2})$/);
+    if (g && g[3] !== "0001") kickoff = `${g[3]}-${g[1]}-${g[2]}T${g[4]}:${g[5]}:00${g[6]}:${g[7]}`;
+    const headText = text((chunk.match(/<p class="nfl-o-matchup-cards__date-info">([\s\S]*?)<\/p>/) || [])[1] || "");
+    const final = /--post-game/.test(chunk.slice(0, 200));
+    const logo = (chunk.match(/(https:\/\/static\.www\.nfl\.com\/[^"\s]*\/clubs\/logos\/[A-Z]+)/) || [])[1] || "";
+    const links = [...chunk.matchAll(/<a href="([^"]+)"[^>]*class="nfl-o-matchup-cards__btn-(?:game-day|buy-tickets)[^"]*"[^>]*>([\s\S]*?)<\/a>/g)]
+      .map(m => ({ label: text(m[2]), href: decode(m[1]) })).filter(l => l.label && !/ticket|watch|listen/i.test(l.label));
+    games.push({
+      season: sType, week, kickoff, tbd: !kickoff, header: headText,
+      final, result: pick(/__score--result">([\s\S]*?)<\/span>/), score: pick(/__score--points">([\s\S]*?)<\/span>/),
+      homeAway: pick(/__team-prefix">([\s\S]*?)<\/span>/) || pick(/__team-game-location">([\s\S]*?)<\/p>/),
+      opp: pick(/__team-short-name">([\s\S]*?)<\/p>/), oppFull: pick(/__team-full-name">([\s\S]*?)<\/p>/), logo,
+      tv: pick(/__media-tv--networks">([\s\S]*?)<\/span>/), radio: pick(/__media-radio--networks">([\s\S]*?)<\/span>/),
+      venue: pick(/__venue--location">([\s\S]*?)<\/span>/), links,
+    });
+  });
+  return games;
+}
 // ==PARSE END==
 
 async function get(path) {
@@ -100,6 +135,14 @@ async function get(path) {
   return res.text();
 }
 
+function previousData() {
+  try {
+    const old = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+    const m = old.match(/const DATA = (\{.*?\});\n/s);
+    return m ? JSON.parse(m[1]) : {};
+  } catch { return {}; }
+}
+
 function seasonYear(d = new Date()) { return d.getUTCMonth() >= 2 ? d.getUTCFullYear() : d.getUTCFullYear() - 1; }
 
 async function main() {
@@ -107,6 +150,15 @@ async function main() {
   const [depthHtml, rosterHtml, statsHtml] = await Promise.all([
     get("/team/depth-chart"), get("/team/players-roster/"), get(`/team/stats/${year}/REG`),
   ]);
+  // The schedule is optional: if it can't be read, keep the schedule from the last good build.
+  let schedule = [];
+  try {
+    schedule = parseSchedule(await get("/schedule/"));
+    if (schedule.filter(g => !g.bye).length < 10) throw new Error(`only ${schedule.length} games found`);
+  } catch (e) {
+    console.warn("Schedule update skipped:", e.message);
+    schedule = previousData().schedule || [];
+  }
   const { asOf, slots } = parseDepth(depthHtml);
   const players = parseRoster(rosterHtml);
   const stats = parseStats(statsHtml);
@@ -119,6 +171,25 @@ async function main() {
   if (!slots.some(s => s.pos === "QB")) throw new Error("No QB row on the depth chart");
   if (missing.length > 3) throw new Error(`Depth chart players missing from roster: ${missing.join(", ")}`);
 
+  // Team logos are saved into the page itself, so they show even where outside images are blocked.
+  const prevLogos = {};
+  for (const g of previousData().schedule || []) if (g.logo && g.logoData) prevLogos[g.logo] = g.logoData;
+  const logoCache = {};
+  for (const g of schedule) {
+    if (!g.logo) continue;
+    const abbr = g.logo.split("/").pop();
+    if (!(g.logo in logoCache)) {
+      logoCache[g.logo] = prevLogos[g.logo] || "";
+      try {
+        const r = await fetch(`https://static.www.nfl.com/image/upload/w_160,f_png/league/api/clubs/logos/${abbr}`);
+        const buf = Buffer.from(await r.arrayBuffer());
+        const isPng = buf.length > 200 && buf.length < 60000 && buf[0] === 0x89 && buf.toString("latin1", 1, 4) === "PNG";
+        if (r.ok && isPng) logoCache[g.logo] = "data:image/png;base64," + buf.toString("base64");
+      } catch (e) { /* keep the previous copy or fall back to the web address */ }
+    }
+    if (logoCache[g.logo]) g.logoData = logoCache[g.logo];
+  }
+
   const keep = {};
   for (const s of onChart) if (players[s]) keep[s] = players[s];
   const statsKept = {};
@@ -127,13 +198,13 @@ async function main() {
   const data = {
     asOf, season: year, built: new Date().toISOString().slice(0, 10),
     slots: slots.map(s => ({ ...s, list: s.list.filter(x => keep[x]) })).filter(s => s.list.length),
-    players: keep, stats: statsKept,
+    players: keep, stats: statsKept, schedule,
   };
   const tpl = readFileSync(new URL("./template.html", import.meta.url), "utf8");
   if (!tpl.includes("__BEARS_DATA__")) throw new Error("template.html is missing the __BEARS_DATA__ marker");
   const out = tpl.replace("__BEARS_DATA__", () => JSON.stringify(data).replace(/</g, "\\u003c"));
   writeFileSync(new URL("./index.html", import.meta.url), out);
-  console.log(`Built: ${data.slots.length} depth rows, ${Object.keys(keep).length} players, ${Object.keys(statsKept).length} with stats, depth chart as of ${asOf}`);
+  console.log(`Built: ${data.slots.length} depth rows, ${Object.keys(keep).length} players, ${Object.keys(statsKept).length} with stats, ${schedule.length} schedule entries, depth chart as of ${asOf}`);
 }
 
 if (process.argv[2] === "--from-json") {
