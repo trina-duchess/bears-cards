@@ -2,8 +2,7 @@ name: Update Bears cards
 
 on:
   schedule:
-    - cron: "17 16 * * 2"
-    - cron: "17 16 * * 5"
+  - cron: "17 */2 * * *"
   workflow_dispatch:
 
 permissions:
