@@ -121,6 +121,46 @@ function parseSchedule(html) {
   });
   return games;
 }
+// ----- Bears news (ESPN) -----
+// Keeps only stories about the Bears: ESPN must tag them "Chicago Bears", and stories that cover
+// several teams must name the Bears, Chicago, the head coach or a current Bears player.
+function bearsNewsFilter(names){
+  const nameRe = names.length ? new RegExp("\\b(" + names.map(n=>n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|") + ")\\b") : null;
+  return a => {
+    const teams=(a.categories||[]).filter(c=>c.type==="team").map(c=>c.description||"");
+    if (!teams.includes("Chicago Bears")) return false;
+    if (teams.length === 1) return true;                        // tagged only with the Bears
+    const about = t => /\bBears\b|\bChicago\b|Ben Johnson/.test(t) || (nameRe ? nameRe.test(t) : false);
+    if (teams.length <= 2) return about(`${a.headline||""} ${a.description||""}`);
+    return about(a.headline||"");                               // league-wide stories: Bears must be in the headline
+  };
+}
+const slimNews = a => ({
+  id: String(a.id||a.links?.web?.href||a.headline), headline: a.headline||"", description: a.description||"",
+  published: a.published||a.lastModified||"", type: a.type||"", premium: !!a.premium,
+  image: a.images?.[0]?.url||"", link: a.links?.web?.href||"", source: "ESPN",
+});
+const playerSearchNames = players => Object.values(players).map(p=>p.name.replace(/\s+(Jr\.|Sr\.|II|III|IV)$/,"")).filter(n=>n.split(" ").length>1);
+// RSS / Atom feed reader for the other news sources (team site, Sun-Times, Tribune, Windy City Gridiron)
+function parseFeed(xml, source){
+  const out=[];
+  for (const m of xml.matchAll(/<(item|entry)\b[^>]*>([\s\S]*?)<\/\1>/g)) {
+    const b=m[2];
+    const tag=name=>{ const r=b.match(new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)<\\/${name}>`)); return r?r[1]:""; };
+    const cdata=s=>s.replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/,"$1");
+    const title=text(decode(cdata(tag("title"))));
+    let link=cdata(tag("link")).trim();
+    if (!link || link.startsWith("<")) { const r=b.match(/<link\b[^>]*rel="alternate"[^>]*href="([^"]+)"/)||b.match(/<link\b[^>]*href="([^"]+)"/); link=r?decode(r[1]):""; }
+    const when=new Date((tag("pubDate")||tag("published")||tag("updated")).trim());
+    const body=cdata(tag("description")||tag("summary")||tag("content"));
+    const img=(b.match(/<media:content[^>]*url="([^"]+)"/)||b.match(/<enclosure[^>]*url="([^"]+)"[^>]*type="image/)||b.match(/<img[^>]*src="([^"]+)"/)||decode(b).match(/<img[^>]*src="([^"]+)"/)||[])[1]||"";
+    let desc=text(decode(body)).replace(/\[…\]|\[\.\.\.\]|\[&#8230;\]/g,"").trim();
+    if (desc.length>240) desc=desc.slice(0,240).replace(/\s+\S*$/,"")+"…";
+    if (!title || !link || isNaN(when)) continue;
+    out.push({ id:link, headline:title, description:desc===title?"":desc, published:when.toISOString(), type:"Story", premium:false, image:decode(img), link, source });
+  }
+  return out;
+}
 // ==PARSE END==
 
 async function get(path) {
@@ -190,6 +230,43 @@ async function main() {
     if (logoCache[g.logo]) g.logoData = logoCache[g.logo];
   }
 
+  // Bears news from several sources, merged into one list (newest first).
+  // Each update saves the latest stories, so the News tab can scroll back further than any one feed goes.
+  // The app itself also pulls fresh ESPN stories every time it opens.
+  const names = playerSearchNames(players);
+  const nameRe = new RegExp("\\b(" + names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b");
+  const NEWS_SOURCES = [
+    { source: "ChicagoBears.com", url: "https://www.chicagobears.com/rss/news" },
+    { source: "Sun-Times", url: "https://chicago.suntimes.com/rss/bears/index.xml" },
+    { source: "Windy City Gridiron", url: "https://www.windycitygridiron.com/rss/index.xml" },
+    // The Tribune blocks direct feed readers, so its Bears stories come through Google News.
+    { source: "Tribune", url: "https://news.google.com/rss/search?q=%22Chicago+Bears%22+site:chicagotribune.com+when:14d&hl=en-US&gl=US&ceid=US:en",
+      tidy: n => ({ ...n, headline: n.headline.replace(/\s+-\s+Chicago Tribune$/, ""), description: "" }),
+      keep: n => /\bBears\b|Ben Johnson/.test(n.headline) || nameRe.test(n.headline) },
+  ];
+  let fresh = [];
+  try {
+    const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?team=3&limit=50");
+    fresh.push(...((await r.json()).articles || []).filter(bearsNewsFilter(names)).map(slimNews));
+  } catch (e) { console.warn("ESPN news skipped:", e.message); }
+  for (const src of NEWS_SOURCES) {
+    try {
+      const res = await fetch(src.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; BearsDepthCards/1.0)", "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml" } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let items = parseFeed(await res.text(), src.source);
+      if (src.tidy) items = items.map(src.tidy);
+      if (src.keep) items = items.filter(src.keep);
+      fresh.push(...items);
+      console.log(`News: ${items.length} from ${src.source}`);
+    } catch (e) { console.warn(`${src.source} news skipped:`, e.message); }
+  }
+  const linkKey = u => String(u).replace(/^https?:\/\//, "").replace(/#.*$/, "").replace(/\/$/, "");
+  const seen = new Set();
+  let news = [...fresh, ...(previousData().news || [])]
+    .filter(n => n.link && n.published && !seen.has(linkKey(n.link)) && seen.add(linkKey(n.link)));
+  news.sort((a, b) => new Date(b.published) - new Date(a.published));
+  news = news.slice(0, 300);
+
   const keep = {};
   for (const s of onChart) if (players[s]) keep[s] = players[s];
   const statsKept = {};
@@ -198,13 +275,13 @@ async function main() {
   const data = {
     asOf, season: year, built: new Date().toISOString().slice(0, 10),
     slots: slots.map(s => ({ ...s, list: s.list.filter(x => keep[x]) })).filter(s => s.list.length),
-    players: keep, stats: statsKept, schedule,
+    players: keep, stats: statsKept, schedule, news,
   };
   const tpl = readFileSync(new URL("./template.html", import.meta.url), "utf8");
   if (!tpl.includes("__BEARS_DATA__")) throw new Error("template.html is missing the __BEARS_DATA__ marker");
   const out = tpl.replace("__BEARS_DATA__", () => JSON.stringify(data).replace(/</g, "\\u003c"));
   writeFileSync(new URL("./index.html", import.meta.url), out);
-  console.log(`Built: ${data.slots.length} depth rows, ${Object.keys(keep).length} players, ${Object.keys(statsKept).length} with stats, ${schedule.length} schedule entries, depth chart as of ${asOf}`);
+  console.log(`Built: ${data.slots.length} depth rows, ${Object.keys(keep).length} players, ${Object.keys(statsKept).length} with stats, ${schedule.length} schedule entries, ${news.length} news stories, depth chart as of ${asOf}`);
 }
 
 if (process.argv[2] === "--from-json") {
