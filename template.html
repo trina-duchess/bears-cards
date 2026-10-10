@@ -171,8 +171,6 @@ h1 span{color:var(--orange)}
 .shead h2{font-family:var(--f-display);font-weight:800;text-transform:uppercase;font-size:26px;margin:0}
 .rec{font-family:var(--f-label);font-weight:700;font-size:15px;letter-spacing:.06em;color:var(--muted);font-variant-numeric:tabular-nums}
 .rec b{color:var(--orange);font-size:18px}
-.snav{display:flex;align-items:center;gap:10px}
-.spos{flex:1;text-align:center;font-family:var(--f-label);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .sarrow{appearance:none;width:44px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-size:26px;line-height:1;cursor:pointer;flex:none}
 .sarrow:disabled{opacity:.3;cursor:default}
 .strack{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;scrollbar-width:none;overscroll-behavior-x:contain;margin-inline:-16px;padding-inline:16px;scroll-padding-inline:16px}
@@ -244,8 +242,13 @@ h1 span{color:var(--orange)}
 .srow .rs{font-family:var(--f-label);font-weight:700;font-size:15px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:#fff}
 .srow .rs.W{color:#5FD68E} .srow .rs.L{color:#FF8A65} .srow .rs.T{color:#AEB8CC}
 .srow .rs.live{color:#FF6B6B}
+.srow .rs.tv{font-size:13px;color:#AEB8CC;letter-spacing:.06em}
+.srow .op small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .slist .sec{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;padding:7px 14px;background:#C83803}
 .snote{margin:0;font-size:13px;color:var(--muted)}
+.sdetail{display:flex;flex-direction:column;gap:10px;padding:12px;background:#1F3358;border-bottom:1px solid rgba(255,255,255,.1)}
+.sdetail .gcard{flex:none;width:100%;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
+.srow[aria-expanded="true"]{background:#1F3358;border-left-color:#C83803}
 
 /* News view */
 .nref{width:auto;padding:0 14px;font-family:var(--f-label);font-weight:700;font-size:14px;letter-spacing:.06em;text-transform:uppercase;height:36px}
@@ -325,11 +328,6 @@ html{background:#0B162A!important}body{min-height:100vh}
 <div class="wrap">
   <section id="view-sched" style="display:flex;flex-direction:column;gap:14px">
     <div class="shead"><h2 id="stitle">Schedule</h2><span class="rec" id="srec"></span></div>
-    <div class="snav">
-      <button class="sarrow" id="sprev" type="button" aria-label="Previous game">‹</button>
-      <div class="spos" id="spos"></div>
-      <button class="sarrow" id="snext" type="button" aria-label="Next game">›</button>
-    </div>
     <div class="strack" id="strack"></div>
     <button class="btn ghost snow" id="snow" type="button">Jump to next game</button>
     <div class="slist" id="slist"></div>
@@ -736,6 +734,10 @@ function gameCard(g,i,nextI){
   </article>`;
 }
 let schedCur=0;
+// "10 AM PDT", "5:15 PM PST" (Pacific time)
+const shortTime = d => fmt(d,{hour:"numeric",minute:"2-digit",timeZoneName:"short"}).replace(":00 "," ");
+// First TV network for the list's right column, e.g. "FOX", "ESPN", "Prime"
+const tvShort = tv => { const n=String(tv||"").split(/\s*[•·|,]\s*/)[0].trim(); return /prime/i.test(n)?"Prime":/netflix/i.test(n)?"Netflix":n.toUpperCase(); };
 function listHTML(){
   let last="";
   return SCHED.map((g,i)=>{
@@ -744,8 +746,8 @@ function listHTML(){
     const st=gameState(g), k=g.kickoff?new Date(g.kickoff):null, res=resultOf(g);
     const rs = st==="final" ? `<span class="rs ${esc(res)}">${esc(res)} ${esc(scoreOf(g))}</span>`
       : st==="live" ? `<span class="rs live">${g._live&&g._live.bears!=null?`${g._live.bears} - ${g._live.opp}`:"Live"}</span>`
-      : `<span class="rs">${k?fmt(k,{hour:"numeric",minute:"2-digit"}):"TBD"}</span>`;
-    return head+`<button class="srow" type="button" data-i="${i}"><span class="wk">${esc(weekLabel(g).replace("Pre Week ","Pre ").replace("Week ","Wk "))}</span><span class="lg">${logoHTML(g)}</span><span class="op">${g.homeAway==="AT"?"at ":"vs "}${esc(g.opp)}<small>${k?fmt(k,{weekday:"short",month:"short",day:"numeric"}):"Date TBD"}</small></span>${rs}</button>`;
+      : `<span class="rs tv">${esc(tvShort(g.tv))}</span>`;
+    return head+`<button class="srow" type="button" data-i="${i}"><span class="wk">${esc(weekLabel(g).replace("Pre Week ","Pre ").replace("Week ","Wk "))}</span><span class="lg">${logoHTML(g)}</span><span class="op">${g.homeAway==="AT"?"at ":"vs "}${esc(g.opp)}<small>${k?`${fmt(k,{weekday:"short",month:"numeric",day:"numeric"})} · ${shortTime(k)}`:"Date TBD"}</small></span>${rs}</button>`;
   }).join("");
 }
 function renderRecord(){
@@ -757,9 +759,33 @@ function renderRecord(){
 function renderList(){
   const list=document.getElementById("slist");
   list.innerHTML=listHTML();
-  list.querySelectorAll(".srow").forEach(b=>b.onclick=()=>{ goGame(+b.dataset.i, true); });
+  list.querySelectorAll(".srow").forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.i;
+    if (openGame===i) closeGameDetail(); else openGameDetail(i);
+  });
   renderRecord();
   setCur(schedCur);
+  if (openGame!=null) openGameDetail(openGame, true);   // keep it open through live-score refreshes
+}
+// Tap a game in the list to open its full card right below it; tap again or "Close" to hide it.
+let openGame=null;
+function closeGameDetail(){
+  const list=document.getElementById("slist");
+  list.querySelectorAll(".sdetail").forEach(d=>d.remove());
+  list.querySelectorAll('.srow[aria-expanded="true"]').forEach(r=>r.setAttribute("aria-expanded","false"));
+  openGame=null;
+}
+function openGameDetail(i, quiet){
+  const list=document.getElementById("slist"), row=list.querySelector(`.srow[data-i="${i}"]`);
+  closeGameDetail(); if(!row || SCHED[i]?.bye) return;
+  const d=document.createElement("div");
+  d.className="sdetail";
+  d.innerHTML=gameCard(SCHED[i], i, nextIndex())+`<button class="mclose" type="button">✕ Close</button>`;
+  d.querySelector(".mclose").onclick=closeGameDetail;
+  row.parentNode.insertBefore(d,row.nextSibling);
+  row.setAttribute("aria-expanded","true");
+  openGame=i;
+  if(!quiet) row.scrollIntoView({block:"nearest",behavior:"smooth"});
 }
 function renderSchedule(){
   const track=document.getElementById("strack");
@@ -785,9 +811,6 @@ function goGame(i,smooth){
 function setCur(i){
   schedCur=i;
   const g=SCHED[i];
-  document.getElementById("spos").textContent = g ? `${weekLabel(g)} · ${i+1} of ${SCHED.length}` : "";
-  document.getElementById("sprev").disabled = i<=0;
-  document.getElementById("snext").disabled = i>=SCHED.length-1;
   document.querySelectorAll("#slist .srow").forEach(r=>r.classList.toggle("cur",+r.dataset.i===i));
   const n=nextIndex();
   document.getElementById("snow").hidden = i===n;
@@ -832,8 +855,6 @@ document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ pollLiv
     [...track.children].forEach((c,i)=>{const d=Math.abs(c.offsetLeft-track.offsetLeft-16-x+16); if(d<bd){bd=d;best=i;}});
     setCur(best);
   },80); },{passive:true});
-  document.getElementById("sprev").onclick=()=>{userMoved=true;goGame(Math.max(0,schedCur-1),true);};
-  document.getElementById("snext").onclick=()=>{userMoved=true;goGame(Math.min(SCHED.length-1,schedCur+1),true);};
   document.getElementById("snow").onclick=()=>{userMoved=false;goGame(nextIndex(),true);};
   let rt; window.addEventListener("resize",()=>{ clearTimeout(rt); rt=setTimeout(()=>goGame(schedCur,false),120); });
 })();
