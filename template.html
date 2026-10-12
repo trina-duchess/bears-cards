@@ -187,6 +187,8 @@ h1 span{color:var(--orange)}
 .glogo{width:76px;height:76px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden}
 .glogo img{width:84%;height:84%;object-fit:contain}
 .glogo span{font-family:var(--f-display);font-weight:900;font-size:24px;color:#0B162A}
+.grec{font-family:var(--f-label);font-weight:700;font-size:.45em;letter-spacing:.06em;color:#E2541B;white-space:nowrap;vertical-align:middle}
+.srow .op .orec{font-weight:400;font-size:13px;color:#AEB8CC;margin-left:2px}
 .gvs{font-family:var(--f-label);font-weight:700;font-size:14px;letter-spacing:.1em;color:#AEB8CC}
 .gopp{font-family:var(--f-display);font-weight:800;font-size:clamp(28px,8vw,40px);line-height:.95;text-transform:uppercase;text-wrap:balance}
 .gwhen{display:flex;flex-direction:column;gap:2px;border-top:1px solid rgba(255,255,255,.15);padding-top:10px}
@@ -269,6 +271,31 @@ h1 span{color:var(--orange)}
 .nempty{margin:0;padding:18px;color:#AEB8CC;text-align:center}
 @media (max-width:420px){.nimg{width:84px;height:60px}.nhead{font-size:15px}}
 
+/* Injuries view */
+.ilist{display:flex;flex-direction:column;background:#0B162A;border-radius:12px;overflow:hidden}
+.ilist .sec{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;padding:7px 14px;background:#C83803}
+.irow{appearance:none;border:0;border-bottom:1px solid rgba(255,255,255,.1);border-left:4px solid transparent;background:#0B162A;color:#fff;font:inherit;text-align:left;display:grid;grid-template-columns:36px minmax(0,1fr) auto;grid-template-areas:"num name stat" ". prac prac";align-items:center;gap:4px 10px;padding:9px 14px 9px 10px;width:100%}
+.irow:nth-of-type(even){background:#13213B}
+.irow.tap{cursor:pointer}
+.irow.tap:hover,.irow[aria-expanded="true"]{background:#1F3358;border-left-color:#C83803}
+.inum{grid-area:num;font-family:var(--f-display);font-weight:800;font-size:20px;color:#E2541B;text-align:right;font-variant-numeric:tabular-nums}
+.iname{grid-area:name;font-weight:600;font-size:15px;line-height:1.25;min-width:0}
+.iname small{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.06em;color:#AEB8CC;margin-left:4px}
+.iinj{display:block;font-weight:400;font-size:13px;color:#AEB8CC}
+.istat{grid-area:stat}
+.iprac{grid-area:prac;display:flex;flex-wrap:wrap;gap:4px}
+.irow .iprac:empty{display:none}
+.ipill{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.ipill.out{background:#B00020;color:#fff}
+.ipill.doubtful{background:#E2541B;color:#fff}
+.ipill.none{background:rgba(255,255,255,.12);color:#AEB8CC}
+.ipill.questionable{background:#FFD24D;color:#0B162A}
+.pchip{font-family:var(--f-label);font-size:12px;letter-spacing:.04em;color:#AEB8CC;background:rgba(255,255,255,.08);border-radius:6px;padding:1px 7px}
+.pchip b{font-weight:700}
+.pchip.dnp b{color:#FF8A80}.pchip.lp b{color:#FFD24D}.pchip.fp b{color:#5FD68E}.pchip.na b{color:#AEB8CC}
+#view-inj .rdetail{display:flex;flex-direction:column;gap:10px;padding:12px;background:#1F3358}
+#view-inj .rdetail .face.mcard{border-radius:12px;box-shadow:none}
+
 /* Depth chart view */
 .unit h2{font-family:var(--f-display);font-weight:800;text-transform:uppercase;font-size:26px;margin:6px 0 8px;display:flex;align-items:center;gap:10px}
 .unit h2::after{content:"";flex:1;height:3px;background:var(--orange)}
@@ -321,6 +348,7 @@ html{background:#0B162A!important}body{min-height:100vh}
       <button class="tab" id="tab-cards" role="tab" aria-selected="false">Cards</button>
       <button class="tab" id="tab-roster" role="tab" aria-selected="false">Roster</button>
       <button class="tab" id="tab-chart" role="tab" aria-selected="false">Depth</button>
+      <button class="tab" id="tab-inj" role="tab" aria-selected="false">Injuries</button>
     </div>
   </div>
 </header>
@@ -377,6 +405,12 @@ html{background:#0B162A!important}body{min-height:100vh}
   </section>
 
   <section id="view-chart" hidden style="flex-direction:column;gap:18px"></section>
+
+  <section id="view-inj" hidden style="flex-direction:column;gap:12px">
+    <div class="shead"><h2>Injury Report</h2><span class="rec" id="iweek"></span></div>
+    <div id="ibody" style="display:flex;flex-direction:column;gap:12px"></div>
+    <p class="snote">From the Bears' official injury report. Teams post practice reports Wednesday through Friday of game weeks, with game status (Out, Doubtful, Questionable) on Friday; this page picks them up within 2 hours. Practice: <b>DNP</b> did not practice, <b>LP</b> limited, <b>FP</b> full. Tap any Bears player to see his card.</p>
+  </section>
 
   <p class="src">Sources: <a href="https://www.chicagobears.com/team/depth-chart" target="_blank" rel="noopener">chicagobears.com depth chart</a>, <a href="https://www.chicagobears.com/team/players-roster/" target="_blank" rel="noopener">roster</a> and <a id="statslink" href="https://www.chicagobears.com/team/stats/" target="_blank" rel="noopener">regular-season stats</a>. <span id="srcinfo"></span></p>
 </div>
@@ -452,6 +486,12 @@ SLOTS.forEach((s,si)=>{
 });
 const ALL = Object.values(players).sort((a,b)=>a.depth-b.depth||a.si-b.si);
 ALL.forEach(p=>{ p.label=[...new Set(p.roles.filter(r=>r.d===p.depth).map(r=>r.pos))].join(" · "); });
+// Everyone else on the roster (injured reserve, PUP, etc.) gets a card too, but isn't in the flashcard decks.
+const RES_INJ = {}; ((DATA.injuries||{}).reserves||[]).forEach(r=>r.players.forEach(pl=>{ if(pl.injury) RES_INJ[pl.slug]=pl.injury; }));
+const LIST_NAME = l => /physically unable/i.test(l)?"PUP list":/non-football/i.test(l)?"Non-football injury list":/reserve\/injured/i.test(l)?"Injured reserve":/suspend/i.test(l)?"Suspended":/active/i.test(l)?"Active roster":(l||"Roster");
+const LIST_SHORT = l => /physically unable/i.test(l)?"PUP":/non-football/i.test(l)?"NFI":/reserve\/injured/i.test(l)?"IR":/suspend/i.test(l)?"Suspended":"Reserve";
+Object.keys(P).forEach(slug=>{ if(!players[slug]) players[slug]={slug, num:P[slug].num, roles:[], depth:null, unit:null, si:999, label:"", extra:true}; });
+const depthLabel = p => p.extra ? LIST_SHORT(P[p.slug].list) : DEPTH[p.depth];
 
 // ---------- State ----------
 const S = {deck:"0", unit:"A", dir:"num", order:"depth", queue:[], i:0, flipped:false, good:0, again:0, missed:[], total:0, firstTry:new Set(), seen:new Set()};
@@ -524,11 +564,12 @@ function show(){
   updateProgress();
 }
 function backHTML(p){
-  const {name,pos,ht,wt,age,exp,col,num}=P[p.slug];
-  const tier=`<span class="pill ${p.depth===0?"s1":""}">${DEPTH[p.depth]}</span>`;
-  return `<div class="ftop"><span>${UNIT[p.unit]} · ${esc(p.label)}</span>${tier}</div>
+  const {name,pos,ht,wt,age,exp,col,num,list}=P[p.slug];
+  const tier=`<span class="pill ${p.depth===0?"s1":""}">${esc(depthLabel(p))}</span>`;
+  const topLeft = p.extra ? esc(LIST_NAME(list)) : `${UNIT[p.unit]} · ${esc(p.label)}`;
+  return `<div class="ftop"><span>${topLeft}</span>${tier}</div>
     <div class="bhead"><div class="bnum">${esc(num)}</div><div style="min-width:0"><div class="bname">${esc(name)}</div><div class="bpos">${esc(pos)} · ${esc(col)}</div></div></div>
-    <ul class="roles">${roleLines(p)}</ul>
+    <ul class="roles">${p.extra?`<li><span class="r1">${esc(LIST_NAME(list))}</span><span class="r2">${esc(RES_INJ[p.slug]?`Injury: ${RES_INJ[p.slug]}`:"Not on the current depth chart")}</span></li>`:roleLines(p)}</ul>
     ${statsHTML(p.slug)}
     <div class="bio"><span><b>${esc(ht)}</b> ht</span><span><b>${esc(wt)}</b> lb</span><span>Age <b>${esc(age)}</b></span><span>${exp==="R"?"<b>Rookie</b>":`<b>${esc(exp)}</b> yrs exp`}</span></div>`;
 }
@@ -598,7 +639,7 @@ function renderRoster(){
   const el=document.getElementById("rlist");
   el.innerHTML=list.map(p=>{
     const {name,pos,col,num}=P[p.slug];
-    return `<button class="rrow" type="button" data-slug="${esc(p.slug)}"><span class="rn">${esc(num)}</span><span class="rname">${esc(name)}<small>${esc(col)}</small></span><span class="rpos">${esc(pos)}</span><span class="rdep ${p.depth===0?"s1":""}">${DEPTH[p.depth]}</span></button>`;
+    return `<button class="rrow" type="button" data-slug="${esc(p.slug)}"><span class="rn">${esc(num)}</span><span class="rname">${esc(name)}<small>${esc(col)}</small></span><span class="rpos">${esc(pos)}</span><span class="rdep ${p.depth===0?"s1":""}">${esc(depthLabel(p))}</span></button>`;
   }).join("");
   el.querySelectorAll(".rrow").forEach(b=>{
     b.onclick=()=>{ if (b.getAttribute("aria-expanded")==="true") closeCard(); else openCard(b.dataset.slug, b); };
@@ -641,7 +682,9 @@ function applyEspnEvent(ev){
   if(!g || g.final) return false;
   const st=comp.status?.type||ev.status?.type||{}, sit=comp.situation||{};
   const poss = sit.possession ? (String(sit.possession)===String(us.team?.id)?"CHI":(them.team?.abbreviation||"")) : "";
-  g._live = { state:st.state, detail:st.shortDetail||st.detail||"", bears:espnScore(us), opp:espnScore(them),
+  // Never replace a known score with a blank one (feeds sometimes omit it for a moment).
+  const old=g._live||{};
+  g._live = { state:st.state, detail:st.shortDetail||st.detail||"", bears:espnScore(us) ?? old.bears ?? null, opp:espnScore(them) ?? old.opp ?? null,
     oppAbbr:them.team?.abbreviation||"", poss, down:sit.downDistanceText||"", last:sit.lastPlay?.text||"", redzone:!!sit.isRedZone, at:Date.now() };
   return true;
 }
@@ -727,7 +770,7 @@ function gameCard(g,i,nextI){
   const links=(g.links||[]).filter(l=>!/ticket|watch|listen/i.test(l.label)).map(l=>`<a href="${esc(l.href)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("");
   return `<article class="gcard${st==="live"?" islive":""}" data-i="${i}">
     <div class="gtop"><span class="wk">${esc(weekLabel(g).replace("Pre ","Preseason "))}${g.season==="POST"?" · Playoffs":""}</span>${pill}</div>
-    <div class="gmain"><div class="glogo">${logoHTML(g)}</div><div style="min-width:0"><div class="gvs">${g.homeAway==="AT"?"AT":"VS"} · ${g.homeAway==="AT"?"Away":"Home"}</div><div class="gopp">${esc(g.oppFull||g.opp)}</div></div></div>
+    <div class="gmain"><div class="glogo">${logoHTML(g)}</div><div style="min-width:0"><div class="gvs">${g.homeAway==="AT"?"AT":"VS"} · ${g.homeAway==="AT"?"Away":"Home"}</div><div class="gopp">${esc(g.oppFull||g.opp)}${recOf(g)?` <span class="grec">(${esc(recOf(g))})</span>`:""}</div></div></div>
     <div class="gwhen">${when}</div>
     ${rows?`<div class="ginfo">${rows}</div>`:""}
     ${links?`<div class="glinks">${links}</div>`:""}
@@ -747,9 +790,12 @@ function listHTML(){
     const rs = st==="final" ? `<span class="rs ${esc(res)}">${esc(res)} ${esc(scoreOf(g))}</span>`
       : st==="live" ? `<span class="rs live">${g._live&&g._live.bears!=null?`${g._live.bears} - ${g._live.opp}`:"Live"}</span>`
       : `<span class="rs tv">${esc(tvShort(g.tv))}</span>`;
-    return head+`<button class="srow" type="button" data-i="${i}"><span class="wk">${esc(weekLabel(g).replace("Pre Week ","Pre ").replace("Week ","Wk "))}</span><span class="lg">${logoHTML(g)}</span><span class="op">${g.homeAway==="AT"?"at ":"vs "}${esc(g.opp)}<small>${k?`${fmt(k,{weekday:"short",month:"numeric",day:"numeric"})} · ${shortTime(k)}`:"Date TBD"}</small></span>${rs}</button>`;
+    return head+`<button class="srow" type="button" data-i="${i}"><span class="wk">${esc(weekLabel(g).replace("Pre Week ","Pre ").replace("Week ","Wk "))}</span><span class="lg">${logoHTML(g)}</span><span class="op">${g.homeAway==="AT"?"at ":"vs "}${esc(g.opp)}${recOf(g)?` <span class="orec">(${esc(recOf(g))})</span>`:""}<small>${k?`${fmt(k,{weekday:"short",month:"numeric",day:"numeric"})} · ${shortTime(k)}`:"Date TBD"}</small></span>${rs}</button>`;
   }).join("");
 }
+// Opponents' current records (from the last update, refreshed from ESPN standings when the page opens).
+let OPP_REC = DATA.records || {};
+const recOf = g => g && !g.bye ? OPP_REC[String(g.oppFull||"").toLowerCase()] || "" : "";
 function renderRecord(){
   const reg=SCHED.filter(g=>g.season==="REG"&&gameState(g)==="final"), c=r=>reg.filter(g=>resultOf(g)===r).length;
   const w=c("W"), l=c("L"), t=c("T");
@@ -827,7 +873,8 @@ async function catchUpResults(){
   try {
     for (const t of [2,3]) {
       const j=await getJSON(`${ESPN}/teams/chi/schedule?season=${DATA.season}&seasontype=${t}`);
-      (j.events||[]).forEach(applyEspnEvent);
+      // Only take finished games here; games in progress come from the live scoreboard below.
+      (j.events||[]).filter(e=>e?.competitions?.[0]?.status?.type?.state==="post").forEach(applyEspnEvent);
     }
     refreshSchedule(!userMoved);
   } catch(e) { /* offline or feed unavailable: keep the weekly data */ }
@@ -845,7 +892,16 @@ async function pollLive(){
   } catch(e) {}
 }
 setInterval(()=>{ if(!document.hidden) pollLive(); }, 30000);
-document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ pollLive(); catchUpResults(); } });
+async function loadRecords(){
+  try {
+    const j=await getJSON(`https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season=${DATA.season}`);
+    const rec={};
+    const walk=o=>{ ((o.standings&&o.standings.entries)||[]).forEach(e=>{ const st=(e.stats||[]).find(s=>s.name==="overall"||s.type==="total"); if(e.team&&st&&st.summary) rec[String(e.team.displayName).toLowerCase()]=st.summary; }); (o.children||[]).forEach(walk); };
+    walk(j);
+    if (Object.keys(rec).length>=30 && JSON.stringify(rec)!==JSON.stringify(OPP_REC)) { OPP_REC=rec; refreshSchedule(false); }
+  } catch(e) {}
+}
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden){ pollLive(); catchUpResults(); loadRecords(); } });
 
 (()=>{
   const track=document.getElementById("strack"); let to;
@@ -920,7 +976,64 @@ async function loadNews(){
 }
 document.getElementById("nrefresh").onclick = loadNews;
 
-const VIEWS=["sched","news","cards","roster","chart"];
+// ---------- Injuries view ----------
+const INJ = DATA.injuries || null;
+const STATUS_ORDER = {OUT:0, DOUBTFUL:1, QUESTIONABLE:2};
+const statusPill = s => { const k=String(s||"").toUpperCase(); return /OUT|DOUBTFUL|QUESTIONABLE/.test(k) ? `<span class="ipill ${k.toLowerCase()}">${k.charAt(0)+k.slice(1).toLowerCase()}</span>` : ""; };
+const pracChip = ([d,v]) => { const k=String(v||"").toUpperCase(); const cls=k==="DNP"?"dnp":k==="LP"?"lp":k==="FP"?"fp":"na"; return `<span class="pchip ${cls}">${esc(d)} <b>${k==="(-)"||!k?"–":esc(k)}</b></span>`; };
+function injRows(list, bears){
+  // Game statuses only appear on the final report of the week; until then, leave blanks blank.
+  const finalOut = list.some(pl=>String(pl.status||"").trim());
+  return list.slice().sort((a,b)=>(STATUS_ORDER[String(a.status).toUpperCase()]??9)-(STATUS_ORDER[String(b.status).toUpperCase()]??9)||a.name.localeCompare(b.name))
+    .map(pl=>{
+      const canOpen = bears && pl.slug && players[pl.slug];
+      return `<${canOpen?'button type="button"':'div'} class="irow${canOpen?" tap":""}" data-slug="${esc(pl.slug||"")}">
+        <span class="inum">${pl.num?esc(pl.num):""}</span>
+        <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury)}</span></span>
+        <span class="istat">${statusPill(pl.status) || (finalOut?`<span class="ipill none">No designation</span>`:"")}</span>
+        <span class="iprac">${(pl.practice||[]).map(pracChip).join("")}</span>
+      </${canOpen?"button":"div"}>`;
+    }).join("");
+}
+// Reserve-list players: same layout as the game report (injury line, status, chips).
+const RES_TAG = l => /practice squad/i.test(l)?"PS-Inj":/physically unable/i.test(l)?"PUP":/non-football/i.test(l)?"NFI":/reserve\/injured/i.test(l)?"IR":"Reserve";
+function resRow(pl){
+  const t=players[pl.slug], list=(INJ.reserves.find(r=>r.players.includes(pl))||{}).list||"";
+  const active=/^active$/i.test(pl.espn||"");
+  const upd=pl.updated?new Date(pl.updated+"T12:00:00"):null;
+  const chips=`<span class="pchip na">List <b>${esc(RES_TAG(list))}</b></span>`
+    +(active?`<span class="pchip fp">Status <b>Active</b></span>`:"")
+    +(upd&&!isNaN(upd)?`<span class="pchip na">Updated <b>${upd.getMonth()+1}/${upd.getDate()}</b></span>`:"");
+  return `<${t?'button type="button"':'div'} class="irow${t?" tap":""}" data-slug="${esc(pl.slug)}">
+    <span class="inum">${esc(pl.num)}</span>
+    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>
+    <span class="istat">${active?"":statusPill("OUT")}</span>
+    <span class="iprac">${chips}</span>
+  </${t?"button":"div"}>`;
+}
+function closeInjCard(){ document.querySelectorAll("#view-inj .rdetail").forEach(d=>d.remove()); document.querySelectorAll('#view-inj .irow[aria-expanded="true"]').forEach(r=>r.setAttribute("aria-expanded","false")); }
+function renderInjuries(){
+  const v=document.getElementById("view-inj");
+  if (!INJ || !INJ.teams || !INJ.teams.length){ document.getElementById("ibody").innerHTML=`<p class="nempty">No injury report yet. It will appear after the next update.</p>`; return; }
+  const bears=INJ.teams.find(t=>/chicago bears/i.test(t.team)) || INJ.teams[0];
+  document.getElementById("iweek").textContent = INJ.week ? INJ.week.replace(/^WEEK/i,"Week").replace(/^PRESEASON WEEK/i,"Preseason week") : "";
+  const resNames={"Reserve/Injured":"Injured reserve","Reserve/Physically Unable to Perform":"PUP list (physically unable to perform)","Reserve/Non-Football Injury":"Non-football injury list","Practice Squad/Injured":"Practice squad, injured"};
+  const res=(INJ.reserves||[]).filter(r=>r.players.length && !/practice squad/i.test(r.list)).map(r=>`<div class="sec">${esc(resNames[r.list]||r.list)}</div>`+r.players.slice().sort((a,b)=>n(a.num)-n(b.num)).map(resRow).join("")).join("");
+  document.getElementById("ibody").innerHTML =
+    `<div class="ilist"><div class="sec">Bears game report${bears.players.length?` · ${bears.players.length} listed`:""}</div>${bears.players.length?injRows(bears.players,true):`<p class="nempty">No Bears players listed.</p>`}</div>`
+    + (res?`<div class="ilist">${res}</div>`:"");
+
+  v.querySelectorAll(".irow.tap").forEach(b=>b.onclick=()=>{
+    if (b.getAttribute("aria-expanded")==="true") { closeInjCard(); return; }
+    closeInjCard();
+    const d=document.createElement("div"); d.className="rdetail";
+    d.innerHTML=`<div class="face back mcard">${backHTML(players[b.dataset.slug])}</div><button class="mclose" type="button">✕ Close card</button>`;
+    d.querySelector(".mclose").onclick=closeInjCard;
+    b.parentNode.insertBefore(d,b.nextSibling); b.setAttribute("aria-expanded","true");
+  });
+}
+
+const VIEWS=["sched","news","cards","roster","chart","inj"];
 function tab(which){
   VIEWS.forEach(v=>{
     const on=v===which;
@@ -932,7 +1045,7 @@ function tab(which){
 VIEWS.forEach(v=>document.getElementById("tab-"+v).onclick=()=>tab(v));
 
 renderControls();renderChart();renderRoster();startDeck();
-tab("sched"); renderSchedule(); catchUpResults(); pollLive(); renderNews(); loadNews();
+tab("sched"); renderSchedule(); catchUpResults(); pollLive(); loadRecords(); renderNews(); loadNews(); renderInjuries();
 document.querySelectorAll("#view-chart .plink").forEach(b=>b.onclick=()=>{
   const k=b.dataset.slug; tab("roster");
   const row=document.querySelector(`.rrow[data-slug="${k}"]`);

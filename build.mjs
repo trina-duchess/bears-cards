@@ -107,14 +107,18 @@ function parseSchedule(html) {
     if (g && g[3] !== "0001") kickoff = `${g[3]}-${g[1]}-${g[2]}T${g[4]}:${g[5]}:00${g[6]}:${g[7]}`;
     const headText = text((chunk.match(/<p class="nfl-o-matchup-cards__date-info">([\s\S]*?)<\/p>/) || [])[1] || "");
     const final = /--post-game/.test(chunk.slice(0, 200));
-    const logo = (chunk.match(/(https:\/\/static\.www\.nfl\.com\/[^"\s]*\/clubs\/logos\/[A-Z]+)/) || [])[1] || "";
+    // During a live game the card lists both teams, so always pick the team that isn't the Bears.
+    const logo = [...chunk.matchAll(/(https:\/\/static\.www\.nfl\.com\/[^"\s]*\/clubs\/logos\/[A-Z]+)/g)].map(m => m[1]).find(l => !/\/CHI$/.test(l)) || "";
+    const shorts = [...chunk.matchAll(/__team-short-name">([\s\S]*?)<\/p>/g)].map(m => text(m[1]));
+    const fulls = [...chunk.matchAll(/__team-full-name">([\s\S]*?)<\/p>/g)].map(m => text(m[1]));
+    let oi = fulls.findIndex(f => !/chicago bears/i.test(f)); if (oi < 0) oi = 0;
     const links = [...chunk.matchAll(/<a href="([^"]+)"[^>]*class="nfl-o-matchup-cards__btn-(?:game-day|buy-tickets)[^"]*"[^>]*>([\s\S]*?)<\/a>/g)]
       .map(m => ({ label: text(m[2]), href: decode(m[1]) })).filter(l => l.label && !/ticket|watch|listen/i.test(l.label));
     games.push({
       season: sType, week, kickoff, tbd: !kickoff, header: headText,
       final, result: pick(/__score--result">([\s\S]*?)<\/span>/), score: pick(/__score--points">([\s\S]*?)<\/span>/),
       homeAway: pick(/__team-prefix">([\s\S]*?)<\/span>/) || pick(/__team-game-location">([\s\S]*?)<\/p>/),
-      opp: pick(/__team-short-name">([\s\S]*?)<\/p>/), oppFull: pick(/__team-full-name">([\s\S]*?)<\/p>/), logo,
+      opp: shorts[oi] || "", oppFull: fulls[oi] || "", logo,
       tv: pick(/__media-tv--networks">([\s\S]*?)<\/span>/), radio: pick(/__media-radio--networks">([\s\S]*?)<\/span>/),
       venue: pick(/__venue--location">([\s\S]*?)<\/span>/), links,
     });
@@ -161,6 +165,95 @@ function parseFeed(xml, source){
   }
   return out;
 }
+// While a game is being played, the team site shows a "LIVE" card without the week label or
+// home/away. Use the copy from the last update (or repair it) so the schedule stays correct.
+function fixLiveCards(games, prev) {
+  const validWeek = w => /^(WEEK|WILD|DIV|CONF|SUPER)/i.test(w || "");
+  return games.map((g, i) => {
+    if (g.bye) return g;
+    const live = /^\s*LIVE\b/i.test(g.header || "") || /chicago bears/i.test(g.oppFull || "") || !validWeek(g.week);
+    if (!live) return g;
+    const p = (prev || []).find(x => !x.bye && x.kickoff && x.kickoff === g.kickoff && validWeek(x.week) && !/chicago bears/i.test(x.oppFull || ""));
+    if (p) return { ...p, final: false, result: "", score: "" };
+    const before = games[i - 1];
+    const n = before && validWeek(before.week) ? (parseInt(String(before.week).replace(/\D/g, ""), 10) || 0) + 1 : 0;
+    return { ...g, week: n ? `WEEK ${n}` : "LIVE", homeAway: g.homeAway || (/soldier field/i.test(g.venue || "") ? "VS" : "AT") };
+  });
+}
+// Official injury report: one table per team (Bears first, then the opponent).
+function parseInjuries(html) {
+  const week = text((html.match(/<option[^>]*\bselected\b[^>]*>([\s\S]*?)<\/option>/i) || [])[1] || "");
+  const teams = [];
+  const re = /nfl-o-injury-report__club-name">([\s\S]*?)<\/span>[\s\S]*?<table\b[^>]*>([\s\S]*?)<\/table>/g;
+  for (const m of html.matchAll(re)) {
+    const team = text(m[1]);
+    const rs = rows(m[2]); if (!rs.length) continue;
+    const head = rs[0].map(c => c.text);
+    const idx = k => head.findIndex(h => h.toLowerCase() === k);
+    const days = head.map((h, i) => [h, i]).filter(([h]) => /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/i.test(h));
+    const players = rs.slice(1).filter(r => r.length >= head.length - 1).map(r => ({
+      name: r[0].text, slug: r[0].slug || "", pos: (r[idx("position")] || {}).text || "",
+      injury: (r[idx("injury")] || {}).text || "",
+      practice: days.map(([d, i]) => [d, (r[i] || {}).text || ""]),
+      status: (r[idx("game status")] || {}).text || "",
+    })).filter(p => p.name);
+    teams.push({ team, players });
+  }
+  return { week, teams };
+}
+// Reserve lists from the roster page (injured reserve, PUP, practice squad injured, etc.).
+function parseReserves(html) {
+  const out = [];
+  const re = /nfl-o-roster__title-status">([\s\S]*?)<\/span>[\s\S]*?<table\b[^>]*>([\s\S]*?)<\/table>/g;
+  for (const m of html.matchAll(re)) {
+    const list = text(m[1]);
+    if (!/reserve|injur|unable/i.test(list) || /practice squad/i.test(list)) continue;
+    const rs = rows(m[2]); if (!rs.length) continue;
+    const head = rs[0].map(c => c.text.toLowerCase());
+    const get = (r, k) => (r[head.indexOf(k)] || {}).text || "";
+    const players = rs.slice(1).filter(r => r[0] && r[0].slug).map(r => {
+      const tm = r[0].html.match(/title="([^"]+)"/);
+      return { name: tm ? decode(tm[1]).trim() : r[0].text, slug: r[0].slug, num: get(r, "#"), pos: get(r, "pos") };
+    });
+    out.push({ list, players });
+  }
+  return out;
+}
+// Which roster list each player is on (Active, Reserve/Injured, Practice Squad, ...).
+function rosterLists(html) {
+  const listOf = {};
+  const re = /nfl-o-roster__title-status">([\s\S]*?)<\/span>[\s\S]*?<table\b[^>]*>([\s\S]*?)<\/table>/g;
+  for (const m of html.matchAll(re)) {
+    const list = text(m[1]);
+    for (const r of rows(m[2])) if (r[0] && r[0].slug && !listOf[r[0].slug]) listOf[r[0].slug] = list;
+  }
+  return listOf;
+}
+// ESPN injury entry -> short label like "Knee - ACL (left) · surgery". "" if nothing useful.
+const nameKey = n => String(n || "").toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, "").replace(/[^a-z]/g, "");
+function espnInjuryLabel(it) {
+  const d = it.details || {};
+  const ns = v => v && !/not specified/i.test(v) ? v : "";
+  let type = ns(d.type);
+  if (!type || /coach/i.test(type)) type = ((it.shortComment || "").match(/^[^(]{0,60}\(([^)]{2,40})\)/) || [])[1] || "";
+  if (!type) return "";
+  type = type.charAt(0).toUpperCase() + type.slice(1);
+  const side = ns(d.side), detail = ns(d.detail);
+  return type + (side ? ` (${side.toLowerCase()})` : "") + (detail && !/^undisclosed$/i.test(type) && !type.toLowerCase().includes(detail.toLowerCase()) ? ` · ${detail.toLowerCase()}` : "");
+}
+// ESPN standings -> { "atlanta falcons": "2-3", ... }
+function parseStandings(j) {
+  const out = {};
+  const walk = o => {
+    for (const e of (o.standings && o.standings.entries) || []) {
+      const st = (e.stats || []).find(s => s.name === "overall" || s.type === "total");
+      if (e.team && st && st.summary) out[String(e.team.displayName).toLowerCase()] = st.summary;
+    }
+    (o.children || []).forEach(walk);
+  };
+  walk(j || {});
+  return out;
+}
 // ==PARSE END==
 
 async function get(path) {
@@ -193,12 +286,19 @@ async function main() {
   // The schedule is optional: if it can't be read, keep the schedule from the last good build.
   let schedule = [];
   try {
-    schedule = parseSchedule(await get("/schedule/"));
+    schedule = fixLiveCards(parseSchedule(await get("/schedule/")), previousData().schedule);
     if (schedule.filter(g => !g.bye).length < 10) throw new Error(`only ${schedule.length} games found`);
   } catch (e) {
     console.warn("Schedule update skipped:", e.message);
     schedule = previousData().schedule || [];
   }
+  // Injury report + reserve lists. Optional: if the report can't be read, keep the last one.
+  let injuries = previousData().injuries || null;
+  try {
+    const rep = parseInjuries(await get("/team/injury-report/"));
+    if (!rep.teams.length) throw new Error("no injury tables found");
+    injuries = { ...rep, reserves: parseReserves(rosterHtml) };
+  } catch (e) { console.warn("Injury report skipped:", e.message); }
   const { asOf, slots } = parseDepth(depthHtml);
   const players = parseRoster(rosterHtml);
   const stats = parseStats(statsHtml);
@@ -267,15 +367,57 @@ async function main() {
   news.sort((a, b) => new Date(b.published) - new Date(a.published));
   news = news.slice(0, 300);
 
-  const keep = {};
-  for (const s of onChart) if (players[s]) keep[s] = players[s];
-  const statsKept = {};
-  for (const s of onChart) if (stats[s]) statsKept[s] = stats[s];
+  if (injuries) for (const t of injuries.teams) for (const pl of t.players) if (pl.slug && players[pl.slug]) pl.num = players[pl.slug].num;
+  // Bears only: drop the opponent's half of the report.
+  if (injuries) injuries = { ...injuries, teams: injuries.teams.filter(t => /chicago bears/i.test(t.team)).slice(0, 1) };
+  // What the injury is for players on reserve lists (the official report only covers the active roster).
+  if (injuries && injuries.reserves) {
+    const prevInj = {};
+    for (const r of (previousData().injuries || {}).reserves || []) for (const pl of r.players) if (pl.injury) prevInj[pl.slug] = { injury: pl.injury, espn: pl.espn || "", updated: pl.updated || "" };
+    const byName = {};
+    try {
+      const j = u => fetch(u.replace(/^http:/, "https:")).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
+      const list = await j("https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/teams/3/injuries?limit=200");
+      const refs = (list.items || []).map(i => i.$ref);
+      for (let k = 0; k < refs.length; k += 10) {
+        const batch = await Promise.all(refs.slice(k, k + 10).map(u => j(u).catch(() => null)));
+        await Promise.all(batch.filter(Boolean).map(async it => {
+          const label = espnInjuryLabel(it);
+          if (!label || !it.athlete) return;
+          const a = await j(it.athlete.$ref).catch(() => null);
+          const key = a && nameKey(a.displayName || a.fullName);
+          if (key && !byName[key]) byName[key] = { injury: label, espn: it.status || "", updated: (it.date || "").slice(0, 10) }; // newest first
+        }));
+      }
+      console.log(`ESPN injury labels: ${Object.keys(byName).length}`);
+    } catch (e) { console.warn("ESPN injuries skipped:", e.message); }
+    injuries.reserves = injuries.reserves.map(r => ({ ...r, players: r.players.map(pl => ({ ...pl, injury: "", ...(byName[nameKey(pl.name)] || prevInj[pl.slug] || {}) })) }));
+  }
 
+  // Keep every player except the practice squad (depth chart players are always kept,
+  // even a practice squad player who's been called up to play).
+  const listOf = rosterLists(rosterHtml);
+  const keep = {};
+  for (const [slug, p] of Object.entries(players)) {
+    if (!onChart.has(slug) && /practice squad/i.test(listOf[slug] || "")) continue;
+    keep[slug] = { ...p, list: listOf[slug] || "" };
+  }
+  const statsKept = {};
+  for (const s of Object.keys(keep)) if (stats[s]) statsKept[s] = stats[s];
+
+  // Every team's current record, for the schedule.
+  let records = previousData().records || {};
+  try {
+    const r = await fetch(`https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season=${year}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const rec = parseStandings(await r.json());
+    if (Object.keys(rec).length < 30) throw new Error(`only ${Object.keys(rec).length} teams`);
+    records = rec;
+  } catch (e) { console.warn("Standings skipped:", e.message); }
   const data = {
     asOf, season: year, built: new Date().toISOString().slice(0, 10),
     slots: slots.map(s => ({ ...s, list: s.list.filter(x => keep[x]) })).filter(s => s.list.length),
-    players: keep, stats: statsKept, schedule, news,
+    players: keep, stats: statsKept, schedule, news, injuries, records,
   };
   const tpl = readFileSync(new URL("./template.html", import.meta.url), "utf8");
   if (!tpl.includes("__BEARS_DATA__")) throw new Error("template.html is missing the __BEARS_DATA__ marker");
