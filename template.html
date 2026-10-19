@@ -228,6 +228,13 @@ h1 span{color:var(--orange)}
 .gsit em{font-style:normal;color:var(--orange);margin-left:6px}
 .glast{font-size:14px;color:#C9D1E0;line-height:1.35}
 .gupd{font-size:12px;color:#7F8BA6}
+.glast b{display:block;font-family:var(--f-label);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#E2541B;margin-bottom:2px}
+.pbp-btn{align-self:flex-start;font:inherit;font-family:var(--f-label);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:rgba(255,255,255,.1);border:0;border-radius:999px;padding:6px 14px;cursor:pointer}
+.pbp{list-style:none;margin:0;padding:0;max-height:300px;overflow-y:auto;border-top:1px solid rgba(255,255,255,.12);-webkit-overflow-scrolling:touch}
+.pbp li{padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.08);font-size:14px;line-height:1.35;color:#C9D1E0}
+.pbp .pm{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-family:var(--f-label);font-size:12px;letter-spacing:.05em;color:#7F8BA6;margin-bottom:2px}
+.pbp .pt{font-weight:700;border-radius:4px;padding:0 6px;color:#0B162A}
+.pbp .pt.score{background:#5FD68E}.pbp .pt.turn{background:#E2541B;color:#fff}.pbp .pt.flag{background:#FFD24D}.pbp .pt.rev{background:#AEB8CC}
 
 .slist{display:flex;flex-direction:column;background:#0B162A;border-radius:12px;overflow:hidden;border:1px solid #0B162A}
 .srow{appearance:none;border:0;border-bottom:1px solid rgba(255,255,255,.1);border-left:4px solid transparent;background:#0B162A;color:#fff;font:inherit;text-align:left;cursor:pointer;display:grid;grid-template-columns:44px 32px minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 14px 9px 10px}
@@ -684,6 +691,7 @@ function applyEspnEvent(ev){
   const poss = sit.possession ? (String(sit.possession)===String(us.team?.id)?"CHI":(them.team?.abbreviation||"")) : "";
   // Never replace a known score with a blank one (feeds sometimes omit it for a moment).
   const old=g._live||{};
+  g._eventId = ev.id;
   g._live = { state:st.state, detail:st.shortDetail||st.detail||"", bears:espnScore(us) ?? old.bears ?? null, opp:espnScore(them) ?? old.opp ?? null,
     oppAbbr:them.team?.abbreviation||"", poss, down:sit.downDistanceText||"", last:sit.lastPlay?.text||"", redzone:!!sit.isRedZone, at:Date.now() };
   return true;
@@ -751,10 +759,44 @@ function scoreboardHTML(g){
       <div class="gl-team${L.poss&&L.poss!=="CHI"?" poss":""}"><b>${esc(o)}</b><span>${esc(abbr)}</span></div>
     </div>
     ${L.down?`<div class="gsit">${L.poss?esc(L.poss)+" ball · ":""}${esc(L.down)}${L.redzone?' <em>Red zone</em>':""}</div>`:""}
-    ${L.last?`<div class="glast">${esc(L.last)}</div>`:""}
+    ${(g._plays&&g._plays[0]?g._plays[0].text:L.last)?`<div class="glast"><b>Last play</b>${esc(g._plays&&g._plays[0]?g._plays[0].text:L.last)}</div>`:""}
+    ${pbpHTML(g)}
     ${L.at?`<div class="gupd">Updated ${fmt(new Date(L.at),{hour:"numeric",minute:"2-digit",second:"2-digit"})}</div>`:`<div class="gupd">Live score loading…</div>`}`;
 }
 
+// ----- Play-by-play (ESPN game summary) -----
+// Each play with its quarter, clock and team; penalties, turnovers, scores and reviews are tagged.
+let pbpOpen=false;
+function playTag(p){
+  if (p.scoring) return ["score","Score"];
+  if (/intercept|fumble|muff|blocked|safety|downs/i.test(p.type+" "+p.text) && !/no play/i.test(p.text)) return ["turn","Turnover"];
+  if (/penalty/i.test(p.type+" "+p.text)) return ["flag","Flag"];
+  if (/review|challenge|overturned|upheld/i.test(p.text)) return ["rev","Review"];
+  return null;
+}
+function pbpHTML(g){
+  const P=g._plays||[]; if(!P.length) return "";
+  const items=P.map(p=>{ const t=playTag(p); return `<li><div class="pm">${t?`<span class="pt ${t[0]}">${t[1]}</span>`:""}<span>Q${esc(p.q)} ${esc(p.clock)}${p.team?" · "+esc(p.team):""}</span></div>${esc(p.text)}</li>`; }).join("");
+  return `<button class="pbp-btn" type="button" aria-expanded="${pbpOpen}">${pbpOpen?"Hide":"Show"} play-by-play ▾</button>${pbpOpen?`<ul class="pbp">${items}</ul>`:""}`;
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest(".pbp-btn"); if(!b) return;
+  pbpOpen=!pbpOpen; refreshSchedule(false);
+});
+async function loadPlays(g){
+  if(!g||!g._eventId) return;
+  try {
+    const j=await getJSON(`${ESPN}/summary?event=${g._eventId}`);
+    const seen=new Set(), out=[];
+    const drives=[...(j.drives?.previous||[]), ...(j.drives?.current?[j.drives.current]:[])];
+    drives.forEach(d=>(d.plays||[]).forEach(p=>{
+      const key=p.id||p.sequenceNumber||p.text; if(!p.text||seen.has(key)) return; seen.add(key);
+      out.push({q:p.period?.number||"", clock:p.clock?.displayValue||"", team:d.team?.abbreviation||"", type:p.type?.text||"", text:p.text, scoring:!!p.scoringPlay, seq:+(p.sequenceNumber)||out.length});
+    }));
+    out.sort((a,b)=>b.seq-a.seq);
+    if(out.length) g._plays=out.slice(0,80);
+  } catch(e) {}
+}
 function gameCard(g,i,nextI){
   if (g.bye) return `<article class="gcard gbye" data-i="${i}"><div class="gtop" style="align-self:stretch"><span class="wk">${esc(weekLabel(g))}</span></div><div class="gopp">Bye week</div><p style="margin:0;color:#AEB8CC">No game this week.</p></article>`;
   const st=gameState(g), k=g.kickoff?new Date(g.kickoff):null, res=resultOf(g);
@@ -888,6 +930,7 @@ async function pollLive(){
   try {
     const j=await getJSON(`${ESPN}/scoreboard?dates=${etDate(new Date(g.kickoff))}`);
     (j.events||[]).forEach(applyEspnEvent);
+    if (g._live && g._live.state==="in") await loadPlays(g);
     refreshSchedule(!userMoved);
   } catch(e) {}
 }
