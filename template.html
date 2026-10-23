@@ -231,6 +231,7 @@ h1 span{color:var(--orange)}
 .glast b{display:block;font-family:var(--f-label);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#E2541B;margin-bottom:2px}
 .pbp-btn{align-self:flex-start;font:inherit;font-family:var(--f-label);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:rgba(255,255,255,.1);border:0;border-radius:999px;padding:6px 14px;cursor:pointer}
 .pbp{list-style:none;margin:0;padding:0;max-height:300px;overflow-y:auto;border-top:1px solid rgba(255,255,255,.12);-webkit-overflow-scrolling:touch}
+.pbp-note{font-size:12px;color:#7F8BA6}
 .pbp li{padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.08);font-size:14px;line-height:1.35;color:#C9D1E0}
 .pbp .pm{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-family:var(--f-label);font-size:12px;letter-spacing:.05em;color:#7F8BA6;margin-bottom:2px}
 .pbp .pt{font-weight:700;border-radius:4px;padding:0 6px;color:#0B162A}
@@ -279,6 +280,25 @@ h1 span{color:var(--orange)}
 @media (max-width:420px){.nimg{width:84px;height:60px}.nhead{font-size:15px}}
 
 /* Injuries view */
+.stconf{font-family:var(--f-display);font-weight:800;font-size:18px;text-transform:uppercase;margin:6px 0 -4px;color:#0B162A}
+.sttab{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;background:#0B162A;color:#fff;border-radius:12px;overflow:hidden;font-variant-numeric:tabular-nums}
+.sttab caption{caption-side:top;text-align:left;font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;padding:7px 14px;background:#C83803;border-radius:12px 12px 0 0}
+.sttab th{font-family:var(--f-label);font-weight:700;font-size:11px;letter-spacing:.08em;color:#7F8BA6;text-align:right;padding:6px 8px 4px}
+.sttab th:first-child{text-align:left;padding-left:14px}
+.sttab td{padding:9px 8px;text-align:right;font-size:14px;border-top:1px solid rgba(255,255,255,.07);color:#C9D1E0;white-space:nowrap}
+.sttab td.tm{text-align:left;padding-left:14px;color:#fff;font-weight:600;white-space:normal}
+.sttab td.tm span{display:flex;align-items:center;gap:8px;height:26px}
+.sttab td{vertical-align:middle;line-height:1.2;height:44px;box-sizing:border-box}
+.sttab td.tm img,.sttab td.tm i{display:block;box-sizing:border-box;width:26px;height:26px;object-fit:contain;flex:none;background:#fff;border-radius:50%;padding:2px}
+.sttab td.tm i{display:inline-grid;place-items:center;font-style:normal;font-size:9px;font-weight:700;color:#0B162A}
+.sttab td.w{color:#fff;font-weight:700}
+.sttab tr.us td{background:#13284A}.sttab tr.us td.tm{box-shadow:inset 4px 0 0 #E2541B}
+.sttab .sk.W{color:#5FD68E}.sttab .sk.L{color:#FF8A80}
+.sttab .c1{width:28px}.sttab .c2{width:46px}.sttab .c3{width:50px}
+.sttab td.tm span{max-width:100%;overflow:hidden}.sttab td.tm b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:420px){.sttab td,.sttab th{padding-left:4px;padding-right:4px}.sttab th:first-child,.sttab td.tm{padding-left:12px}}
+@media (max-width:400px){.sttab .hx{display:none}}
+@media (max-width:340px){.sttab .hx2{display:none}}
 .ilist{display:flex;flex-direction:column;background:#0B162A;border-radius:12px;overflow:hidden}
 .ilist .sec{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;padding:7px 14px;background:#C83803}
 .irow{appearance:none;border:0;border-bottom:1px solid rgba(255,255,255,.1);border-left:4px solid transparent;background:#0B162A;color:#fff;font:inherit;text-align:left;display:grid;grid-template-columns:36px minmax(0,1fr) auto;grid-template-areas:"num name stat" ". prac prac";align-items:center;gap:4px 10px;padding:9px 14px 9px 10px;width:100%}
@@ -351,6 +371,7 @@ html{background:#0B162A!important}body{min-height:100vh}
     </div>
     <div class="tabs" role="tablist">
       <button class="tab" id="tab-sched" role="tab" aria-selected="true">Schedule</button>
+      <button class="tab" id="tab-stand" role="tab" aria-selected="false">Standings</button>
       <button class="tab" id="tab-news" role="tab" aria-selected="false">News</button>
       <button class="tab" id="tab-cards" role="tab" aria-selected="false">Cards</button>
       <button class="tab" id="tab-roster" role="tab" aria-selected="false">Roster</button>
@@ -366,9 +387,14 @@ html{background:#0B162A!important}body{min-height:100vh}
     <div class="strack" id="strack"></div>
     <button class="btn ghost snow" id="snow" type="button">Jump to next game</button>
     <div class="slist" id="slist"></div>
-    <p class="snote">Times are Pacific. Game times can change when the NFL flexes the schedule. Live scores come from ESPN and refresh every 30 seconds during games.</p>
+    <p class="snote">Times are Pacific. Game times can change when the NFL flexes the schedule. Live scores come from ESPN and refresh every 15 seconds during games.</p>
   </section>
 
+  <section id="view-stand" hidden style="flex-direction:column;gap:14px">
+    <div class="shead"><h2>NFL Standings</h2><span class="rec" id="stupd"></span></div>
+    <div id="stbody" style="display:flex;flex-direction:column;gap:14px"></div>
+    <p class="snote">From ESPN, refreshed each time you open this tab. Teams are listed in ESPN's order within each division, which applies the NFL tiebreakers. <b>DIV</b> is the record against division opponents; <b>STRK</b> is the current win or loss streak.</p>
+  </section>
   <section id="view-news" hidden style="flex-direction:column;gap:12px">
     <div class="shead"><h2>Bears News</h2><button class="sarrow nref" id="nrefresh" type="button">Refresh</button></div>
     <p class="snote" id="nupd">Latest Bears stories</p>
@@ -759,7 +785,7 @@ function scoreboardHTML(g){
       <div class="gl-team${L.poss&&L.poss!=="CHI"?" poss":""}"><b>${esc(o)}</b><span>${esc(abbr)}</span></div>
     </div>
     ${L.down?`<div class="gsit">${L.poss?esc(L.poss)+" ball · ":""}${esc(L.down)}${L.redzone?' <em>Red zone</em>':""}</div>`:""}
-    ${(g._plays&&g._plays[0]?g._plays[0].text:L.last)?`<div class="glast"><b>Last play</b>${esc(g._plays&&g._plays[0]?g._plays[0].text:L.last)}</div>`:""}
+    ${(L.last||(g._plays&&g._plays[0]&&g._plays[0].text))?`<div class="glast"><b>Last play</b>${esc(L.last||g._plays[0].text)}</div>`:""}
     ${pbpHTML(g)}
     ${L.at?`<div class="gupd">Updated ${fmt(new Date(L.at),{hour:"numeric",minute:"2-digit",second:"2-digit"})}</div>`:`<div class="gupd">Live score loading…</div>`}`;
 }
@@ -774,10 +800,17 @@ function playTag(p){
   if (/review|challenge|overturned|upheld/i.test(p.text)) return ["rev","Review"];
   return null;
 }
+const playKey = t => String(t||"").replace(/^\s*\(\d+:\d+\)\s*/,"").replace(/\s+/g," ").trim().toLowerCase();
+function playsWithLatest(g){
+  const P=g._plays||[], L=g._live||{};
+  if (!L.last || P.slice(0,8).some(p=>playKey(p.text)===playKey(L.last))) return P;
+  const q=(String(L.detail).match(/(\d)(?:st|nd|rd|th)/)||[])[1]||(P[0]&&P[0].q)||"";
+  return [{q, clock:"", team:"", type:"", text:L.last.trim(), scoring:false, latest:true}, ...P];
+}
 function pbpHTML(g){
-  const P=g._plays||[]; if(!P.length) return "";
-  const items=P.map(p=>{ const t=playTag(p); return `<li><div class="pm">${t?`<span class="pt ${t[0]}">${t[1]}</span>`:""}<span>Q${esc(p.q)} ${esc(p.clock)}${p.team?" · "+esc(p.team):""}</span></div>${esc(p.text)}</li>`; }).join("");
-  return `<button class="pbp-btn" type="button" aria-expanded="${pbpOpen}">${pbpOpen?"Hide":"Show"} play-by-play ▾</button>${pbpOpen?`<ul class="pbp">${items}</ul>`:""}`;
+  const P=playsWithLatest(g); if(!P.length) return "";
+  const items=P.map(p=>{ const t=playTag(p); return `<li><div class="pm">${t?`<span class="pt ${t[0]}">${t[1]}</span>`:""}<span>Q${esc(p.q)}${p.clock?" "+esc(p.clock):" · Just now"}${p.team?" · "+esc(p.team):""}</span></div>${esc(p.text)}</li>`; }).join("");
+  return `<button class="pbp-btn" type="button" aria-expanded="${pbpOpen}">${pbpOpen?"Hide":"Show"} play-by-play ▾</button>${pbpOpen?`<div class="pbp-note">Newest play at the top</div><ul class="pbp">${items}</ul>`:""}`;
 }
 document.addEventListener("click",e=>{
   const b=e.target.closest(".pbp-btn"); if(!b) return;
@@ -794,7 +827,7 @@ async function loadPlays(g){
       out.push({q:p.period?.number||"", clock:p.clock?.displayValue||"", team:d.team?.abbreviation||"", type:p.type?.text||"", text:p.text, scoring:!!p.scoringPlay, seq:+(p.sequenceNumber)||out.length});
     }));
     out.sort((a,b)=>b.seq-a.seq);
-    if(out.length) g._plays=out.slice(0,80);
+    if(out.length) g._plays=out.slice(0,300);
   } catch(e) {}
 }
 function gameCard(g,i,nextI){
@@ -886,8 +919,10 @@ function renderSchedule(){
 // Redraw cards in place (keeps the carousel where it is), then the list and record.
 function refreshSchedule(follow){
   const track=document.getElementById("strack"), nextI=nextIndex();
+  const keep=[...document.querySelectorAll(".pbp")].map(u=>u.scrollTop);
   SCHED.forEach((g,i)=>{ const el=track.children[i]; if(!el) return; const html=gameCard(g,i,nextI); if(el.outerHTML!==html) el.outerHTML=html; });
   renderList();
+  document.querySelectorAll(".pbp").forEach((u,k)=>{ if(keep[k]) u.scrollTop=keep[k]; });
   if (follow) goGame(nextI,false);
 }
 function goGame(i,smooth){
@@ -934,7 +969,7 @@ async function pollLive(){
     refreshSchedule(!userMoved);
   } catch(e) {}
 }
-setInterval(()=>{ if(!document.hidden) pollLive(); }, 30000);
+setInterval(()=>{ if(!document.hidden) pollLive(); }, 15000);
 async function loadRecords(){
   try {
     const j=await getJSON(`https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season=${DATA.season}`);
@@ -1076,7 +1111,41 @@ function renderInjuries(){
   });
 }
 
-const VIEWS=["sched","news","cards","roster","chart","inj"];
+// ---------- Standings view ----------
+let STAND = DATA.standings || null;
+function slimStandings(j){
+  const st=(e,n)=>{ const x=(e.stats||[]).find(s=>s.name===n||s.type===n); return x?String(x.displayValue??x.summary??x.value??""):""; };
+  return (j.children||[]).map(c=>({conf:c.abbreviation, name:c.name, divisions:(c.children||[]).map(d=>({name:d.name,
+    teams:(d.standings?.entries||[]).map(e=>({abbr:e.team.abbreviation, name:e.team.displayName, short:e.team.shortDisplayName, logo:e.team.logos?.[0]?.href||"",
+      w:st(e,"wins"), l:st(e,"losses"), t:st(e,"ties"), pct:st(e,"winPercent"), div:st(e,"vsdiv"), strk:st(e,"streak"), diff:st(e,"pointDifferential"), seed:st(e,"playoffSeed")}))
+      .sort((a,b)=>(+a.seed||99)-(+b.seed||99))}))}));
+}
+function renderStandings(){
+  const body=document.getElementById("stbody");
+  if(!STAND||!STAND.length){ body.innerHTML=`<p class="nempty">Standings will appear after the next update.</p>`; return; }
+  const logos={}; (DATA.standings||[]).forEach(c=>c.divisions.forEach(d=>d.teams.forEach(t=>{ if(t.logoData) logos[t.abbr]=t.logoData; })));
+  const rank=n=>/north/i.test(n)?0:/east/i.test(n)?1:/south/i.test(n)?2:3;
+  const confs=STAND.slice().sort((a,b)=>(a.conf==="NFC"?0:1)-(b.conf==="NFC"?0:1));
+  body.innerHTML=confs.map(c=>{
+    const divs=c.divisions.slice().sort((a,b)=>c.conf==="NFC"?rank(a.name)-rank(b.name):0);
+    return `<div class="stconf">${esc(c.name||c.conf)}</div>`+divs.map(d=>`<table class="sttab"><caption>${esc(d.name)}</caption>
+      <thead><tr><th>Team</th><th class="c1">W</th><th class="c1">L</th><th class="c1 hx2">T</th><th class="c3">PCT</th><th class="c3">DIV</th><th class="c2 hx">STRK</th></tr></thead><tbody>`+
+      d.teams.map(t=>{ const src=logos[t.abbr]||t.logo; const sk=(t.strk||"").charAt(0);
+        return `<tr class="${t.abbr==="CHI"?"us":""}"><td class="tm"><span>${src?`<img src="${esc(src)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('i'),{textContent:'${esc(t.abbr)}'}))">`:`<i>${esc(t.abbr)}</i>`}<b>${esc(t.short||t.name)}</b></span></td><td class="w">${esc(t.w)}</td><td class="w">${esc(t.l)}</td><td class="hx2">${esc(t.t)}</td><td>${esc(t.pct)}</td><td>${esc(t.div)}</td><td class="hx"><span class="sk ${esc(sk)}">${esc(t.strk)}</span></td></tr>`; }).join("")+`</tbody></table>`).join("");
+  }).join("");
+}
+let standAt=0;
+async function loadStandings(){
+  if (Date.now()-standAt<60e3) return;
+  try {
+    const j=await getJSON(`https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season=${DATA.season}&level=3`);
+    const S=slimStandings(j);
+    if (S.reduce((n,c)=>n+c.divisions.reduce((m,d)=>m+d.teams.length,0),0)>=30){ STAND=S; standAt=Date.now(); renderStandings();
+      document.getElementById("stupd").textContent="Updated "+fmt(new Date(),{hour:"numeric",minute:"2-digit"}); }
+  } catch(e) {}
+}
+
+const VIEWS=["sched","stand","news","cards","roster","chart","inj"];
 function tab(which){
   VIEWS.forEach(v=>{
     const on=v===which;
@@ -1084,11 +1153,12 @@ function tab(which){
     const sec=document.getElementById("view-"+v); sec.hidden=!on; sec.style.display=on?"flex":"";
   });
   if(which!=="roster") closeCard();
+  if(which==="stand") loadStandings();
 }
 VIEWS.forEach(v=>document.getElementById("tab-"+v).onclick=()=>tab(v));
 
 renderControls();renderChart();renderRoster();startDeck();
-tab("sched"); renderSchedule(); catchUpResults(); pollLive(); loadRecords(); renderNews(); loadNews(); renderInjuries();
+tab("sched"); renderStandings(); renderSchedule(); catchUpResults(); pollLive(); loadRecords(); renderNews(); loadNews(); renderInjuries();
 document.querySelectorAll("#view-chart .plink").forEach(b=>b.onclick=()=>{
   const k=b.dataset.slug; tab("roster");
   const row=document.querySelector(`.rrow[data-slug="${k}"]`);

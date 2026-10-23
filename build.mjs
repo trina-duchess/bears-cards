@@ -254,6 +254,14 @@ function parseStandings(j) {
   walk(j || {});
   return out;
 }
+// ESPN standings (level=3) -> conferences > divisions > teams, each division in ESPN's tiebreak order.
+function slimStandings(j) {
+  const st = (e, n) => { const x = (e.stats || []).find(s => s.name === n || s.type === n); return x ? String(x.displayValue ?? x.summary ?? x.value ?? "") : ""; };
+  return (j.children || []).map(c => ({ conf: c.abbreviation, name: c.name, divisions: (c.children || []).map(d => ({ name: d.name,
+    teams: (d.standings?.entries || []).map(e => ({ abbr: e.team.abbreviation, name: e.team.displayName, short: e.team.shortDisplayName, logo: e.team.logos?.[0]?.href || "",
+      w: st(e, "wins"), l: st(e, "losses"), t: st(e, "ties"), pct: st(e, "winPercent"), div: st(e, "vsdiv"), strk: st(e, "streak"), diff: st(e, "pointDifferential"), seed: st(e, "playoffSeed") }))
+      .sort((a, b) => (+a.seed || 99) - (+b.seed || 99)) })) }));
+}
 // ==PARSE END==
 
 async function get(path) {
@@ -414,10 +422,31 @@ async function main() {
     if (Object.keys(rec).length < 30) throw new Error(`only ${Object.keys(rec).length} teams`);
     records = rec;
   } catch (e) { console.warn("Standings skipped:", e.message); }
+  // Full standings for the Standings tab, with small logos embedded so they show offline.
+  let standings = previousData().standings || null;
+  try {
+    const r = await fetch(`https://site.api.espn.com/apis/v2/sports/football/nfl/standings?season=${year}&level=3`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const S = slimStandings(await r.json());
+    const teams = S.flatMap(c => c.divisions.flatMap(d => d.teams));
+    if (teams.length < 30) throw new Error(`only ${teams.length} teams`);
+    const oldLogo = {};
+    for (const c of standings || []) for (const d of c.divisions) for (const t of d.teams) if (t.logoData) oldLogo[t.abbr] = t.logoData;
+    for (let k = 0; k < teams.length; k += 8) await Promise.all(teams.slice(k, k + 8).map(async t => {
+      try {
+        const res = await fetch(`https://a.espncdn.com/combiner/i?img=/i/teamlogos/nfl/500/${t.abbr.toLowerCase()}.png&w=64&h=64`);
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (res.ok && buf.slice(0, 4).toString("hex") === "89504e47") t.logoData = "data:image/png;base64," + buf.toString("base64");
+      } catch {}
+      if (!t.logoData && oldLogo[t.abbr]) t.logoData = oldLogo[t.abbr];
+    }));
+    standings = S;
+    for (const t of teams) records[String(t.name).toLowerCase()] = [t.w, t.l].join("-") + (+t.t ? `-${t.t}` : "");
+  } catch (e) { console.warn("Full standings skipped:", e.message); }
   const data = {
     asOf, season: year, built: new Date().toISOString().slice(0, 10),
     slots: slots.map(s => ({ ...s, list: s.list.filter(x => keep[x]) })).filter(s => s.list.length),
-    players: keep, stats: statsKept, schedule, news, injuries, records,
+    players: keep, stats: statsKept, schedule, news, injuries, records, standings,
   };
   const tpl = readFileSync(new URL("./template.html", import.meta.url), "utf8");
   if (!tpl.includes("__BEARS_DATA__")) throw new Error("template.html is missing the __BEARS_DATA__ marker");
