@@ -675,10 +675,10 @@ function renderChart(){
   }).join("");
 }
 // ---------- Roster view ----------
-// Sort like the Bears' roster page: tap a column (Player, #, Pos, HT, WT, Age, Exp, College); tap again to reverse.
+// Sort like the Bears' roster page: tap a column (#, Player, Pos, HT, WT, Age, Exp, College); tap again to reverse. Starts by number.
 // Two sections: the roster (active and reserve players) and the practice squad.
-let RSORT={k:"player",dir:1}; try { const v=JSON.parse(localStorage.getItem("bears-rsort2")||"null"); if(v&&v.k) RSORT=v; } catch(e) {}
-const RCOLS=[["player","Player"],["num","#"],["pos","Pos"],["ht","HT"],["wt","WT"],["age","Age"],["exp","Exp"],["col","College"]];
+let RSORT={k:"num",dir:1}; try { const v=JSON.parse(localStorage.getItem("bears-rsort3")||"null"); if(v&&v.k) RSORT=v; } catch(e) {}
+const RCOLS=[["num","#"],["player","Player"],["pos","Pos"],["ht","HT"],["wt","WT"],["age","Age"],["exp","Exp"],["col","College"]];
 const isPS = p => p.extra && /practice squad/i.test(P[p.slug].list||"");
 const isRes = p => p.extra && !isPS(p) && !/^active$/i.test(P[p.slug].list||"");
 const lastName = nm => String(nm).replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i,"").split(" ").slice(1).join(" ")||nm;
@@ -715,7 +715,7 @@ function renderRoster(){
   bar.innerHTML=RCOLS.map(([k,t])=>`<button type="button" data-k="${k}" aria-pressed="${RSORT.k===k}">${t}${RSORT.k===k?`<i>${RSORT.dir>0?"▲":"▼"}</i>`:""}</button>`).join("");
   bar.querySelectorAll("button").forEach(b=>b.onclick=()=>{
     const k=b.dataset.k; RSORT = RSORT.k===k ? {k,dir:-RSORT.dir} : {k,dir:1};
-    try{localStorage.setItem("bears-rsort2",JSON.stringify(RSORT));}catch(e){}
+    try{localStorage.setItem("bears-rsort3",JSON.stringify(RSORT));}catch(e){}
     const sl=bar.scrollLeft; renderRoster(); document.getElementById("rsort").scrollLeft=sl;
   });
   const all=Object.values(players);
