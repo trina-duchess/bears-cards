@@ -69,6 +69,13 @@ h1 span{color:var(--orange)}
 .fbar .fs{font-family:var(--f-label);font-weight:600;font-size:15px;min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fbar .chev{flex:none;transition:transform .2s;color:var(--muted);font-size:14px}
 .fbar[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.rsort{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -2px;padding:2px}
+.rsort::-webkit-scrollbar{display:none}
+.rsort button{appearance:none;flex:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-family:var(--f-label);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.rsort button[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.rsort button i{font-style:normal;margin-left:4px}
+.rsec h3{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;background:#C83803;margin:0;padding:7px 14px;display:flex;justify-content:space-between}
+.rsec h3 span{opacity:.85;font-weight:600}
 .rlist{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .rrow{appearance:none;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--fg);font:inherit;text-align:left;cursor:pointer;display:grid;grid-template-columns:44px minmax(0,1fr) 36px 84px;align-items:center;gap:10px;padding:9px 14px}
 .rrow:last-child{border-bottom:0}
@@ -434,7 +441,8 @@ html{background:#0B162A!important}body{min-height:100vh}
 
   <section id="view-roster" hidden style="flex-direction:column;gap:12px">
     <div class="rhead"><h2>Roster</h2><p>Tap a player to see his card</p></div>
-    <div class="rlist" id="rlist"></div>
+    <div class="rsort" id="rsort" role="toolbar" aria-label="Sort roster"></div>
+    <div id="rsections" style="display:flex;flex-direction:column;gap:14px"></div>
   </section>
 
   <section id="view-chart" hidden style="flex-direction:column;gap:18px"></section>
@@ -521,8 +529,8 @@ const ALL = Object.values(players).sort((a,b)=>a.depth-b.depth||a.si-b.si);
 ALL.forEach(p=>{ p.label=[...new Set(p.roles.filter(r=>r.d===p.depth).map(r=>r.pos))].join(" · "); });
 // Everyone else on the roster (injured reserve, PUP, etc.) gets a card too, but isn't in the flashcard decks.
 const RES_INJ = {}; ((DATA.injuries||{}).reserves||[]).forEach(r=>r.players.forEach(pl=>{ if(pl.injury) RES_INJ[pl.slug]=pl.injury; }));
-const LIST_NAME = l => /physically unable/i.test(l)?"PUP list":/non-football/i.test(l)?"Non-football injury list":/reserve\/injured/i.test(l)?"Injured reserve":/suspend/i.test(l)?"Suspended":/active/i.test(l)?"Active roster":(l||"Roster");
-const LIST_SHORT = l => /physically unable/i.test(l)?"PUP":/non-football/i.test(l)?"NFI":/reserve\/injured/i.test(l)?"IR":/suspend/i.test(l)?"Suspended":"Reserve";
+const LIST_NAME = l => /practice squad\/injured/i.test(l)?"Practice squad, injured":/practice squad/i.test(l)?"Practice squad":/physically unable/i.test(l)?"PUP list":/non-football/i.test(l)?"Non-football injury list":/reserve\/injured/i.test(l)?"Injured reserve":/suspend/i.test(l)?"Suspended":/active/i.test(l)?"Active roster":(l||"Roster");
+const LIST_SHORT = l => /practice squad/i.test(l)?"Practice sq.":/physically unable/i.test(l)?"PUP":/non-football/i.test(l)?"NFI":/reserve\/injured/i.test(l)?"IR":/suspend/i.test(l)?"Suspended":"Reserve";
 Object.keys(P).forEach(slug=>{ if(!players[slug]) players[slug]={slug, num:P[slug].num, roles:[], depth:null, unit:null, si:999, label:"", extra:true}; });
 const depthLabel = p => p.extra ? LIST_SHORT(P[p.slug].list) : DEPTH[p.depth];
 
@@ -667,21 +675,60 @@ function renderChart(){
   }).join("");
 }
 // ---------- Roster view ----------
+// Sort like the Bears' roster page: tap a column (Player, #, Pos, HT, WT, Age, Exp, College); tap again to reverse.
+// Two sections: the roster (active and reserve players) and the practice squad.
+let RSORT={k:"player",dir:1}; try { const v=JSON.parse(localStorage.getItem("bears-rsort2")||"null"); if(v&&v.k) RSORT=v; } catch(e) {}
+const RCOLS=[["player","Player"],["num","#"],["pos","Pos"],["ht","HT"],["wt","WT"],["age","Age"],["exp","Exp"],["col","College"]];
+const isPS = p => p.extra && /practice squad/i.test(P[p.slug].list||"");
+const isRes = p => p.extra && !isPS(p) && !/^active$/i.test(P[p.slug].list||"");
+const lastName = nm => String(nm).replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i,"").split(" ").slice(1).join(" ")||nm;
+const inches = h => { const m=String(h||"").match(/(\d+)-(\d+)/); return m?+m[1]*12+ +m[2]:null; };
+function sortVal(p,k){
+  const x=P[p.slug];
+  if(k==="player") return (lastName(x.name)+" "+x.name).toLowerCase();
+  if(k==="num") return x.num===""||x.num==null?null:n(x.num);
+  if(k==="ht") return inches(x.ht);
+  if(k==="wt"||k==="age") return x[k]===""||x[k]==null?null:n(x[k]);
+  if(k==="exp") return x.exp==="R"?0:(x.exp===""?null:n(x.exp));
+  return String(x[k]||"").toLowerCase()||null;
+}
+function rosterSort(a,b){
+  const va=sortVal(a,RSORT.k), vb=sortVal(b,RSORT.k);
+  if (va==null||vb==null) { if(va!=null) return -1; if(vb!=null) return 1; }  // blanks always last
+  else if (va!==vb) return (typeof va==="number"?va-vb:va.localeCompare(vb))*RSORT.dir;
+  return sortVal(a,"player").localeCompare(sortVal(b,"player"));
+}
+// The small line under the name shows the sorted-by value when it isn't already on the row.
+function rowNote(x){
+  const k=RSORT.k;
+  const v = k==="ht"?x.ht : k==="wt"?(x.wt?x.wt+" lb":"") : k==="age"?(x.age?"Age "+x.age:"") : k==="exp"?(x.exp==="R"?"Rookie":x.exp?x.exp+" yrs exp":"") : "";
+  return v ? `${v} · ${x.col}` : x.col;
+}
+function rosterRow(p){
+  const x=P[p.slug];
+  const dep = isPS(p) ? (/injur/i.test(x.list)?"Injured":"") : esc(depthLabel(p));
+  return `<button class="rrow" type="button" data-slug="${esc(p.slug)}"><span class="rn">${x.num?esc(x.num):"–"}</span><span class="rname">${esc(x.name)}<small>${esc(rowNote(x))}</small></span><span class="rpos">${esc(x.pos)}</span><span class="rdep ${p.depth===0?"s1":""}">${dep}</span></button>`;
+}
 function renderRoster(){
-  const list=Object.values(players).sort((a,b)=>n(a.num)-n(b.num));
-  const el=document.getElementById("rlist");
-  el.innerHTML=list.map(p=>{
-    const {name,pos,col,num}=P[p.slug];
-    return `<button class="rrow" type="button" data-slug="${esc(p.slug)}"><span class="rn">${esc(num)}</span><span class="rname">${esc(name)}<small>${esc(col)}</small></span><span class="rpos">${esc(pos)}</span><span class="rdep ${p.depth===0?"s1":""}">${esc(depthLabel(p))}</span></button>`;
-  }).join("");
-  el.querySelectorAll(".rrow").forEach(b=>{
+  closeCard();
+  const bar=document.getElementById("rsort");
+  bar.innerHTML=RCOLS.map(([k,t])=>`<button type="button" data-k="${k}" aria-pressed="${RSORT.k===k}">${t}${RSORT.k===k?`<i>${RSORT.dir>0?"▲":"▼"}</i>`:""}</button>`).join("");
+  bar.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k; RSORT = RSORT.k===k ? {k,dir:-RSORT.dir} : {k,dir:1};
+    try{localStorage.setItem("bears-rsort2",JSON.stringify(RSORT));}catch(e){}
+    const sl=bar.scrollLeft; renderRoster(); document.getElementById("rsort").scrollLeft=sl;
+  });
+  const all=Object.values(players);
+  // Reserve players (IR, PUP) stay in the main list, marked on the right; the Injuries tab has their details.
+  const secs=[["Active & Reserve",all.filter(p=>!isPS(p))],["Practice Squad",all.filter(isPS)]].filter(([,l])=>l.length);
+  document.getElementById("rsections").innerHTML=secs.map(([t,l])=>`<div class="rsec"><div class="rlist"><h3>${t}<span>${l.length}</span></h3>${l.sort(rosterSort).map(rosterRow).join("")}</div></div>`).join("");
+  document.querySelectorAll("#rsections .rrow").forEach(b=>{
     b.onclick=()=>{ if (b.getAttribute("aria-expanded")==="true") closeCard(); else openCard(b.dataset.slug, b); };
   });
 }
 function closeCard(){
-  const el=document.getElementById("rlist");
-  el.querySelectorAll(".rdetail").forEach(d=>d.remove());
-  el.querySelectorAll('.rrow[aria-expanded="true"]').forEach(r=>{r.setAttribute("aria-expanded","false");r.focus({preventScroll:true});});
+  document.querySelectorAll("#rsections .rdetail").forEach(d=>d.remove());
+  document.querySelectorAll('#rsections .rrow[aria-expanded="true"]').forEach(r=>{r.setAttribute("aria-expanded","false");r.focus({preventScroll:true});});
 }
 function openCard(slug, row){
   closeCard();

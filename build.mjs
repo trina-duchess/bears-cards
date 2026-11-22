@@ -402,12 +402,10 @@ async function main() {
     injuries.reserves = injuries.reserves.map(r => ({ ...r, players: r.players.map(pl => ({ ...pl, injury: "", ...(byName[nameKey(pl.name)] || prevInj[pl.slug] || {}) })) }));
   }
 
-  // Keep every player except the practice squad (depth chart players are always kept,
-  // even a practice squad player who's been called up to play).
+  // Keep every player on the roster page, practice squad included (they get their own section on the Roster tab).
   const listOf = rosterLists(rosterHtml);
   const keep = {};
   for (const [slug, p] of Object.entries(players)) {
-    if (!onChart.has(slug) && /practice squad/i.test(listOf[slug] || "")) continue;
     keep[slug] = { ...p, list: listOf[slug] || "" };
   }
   const statsKept = {};
