@@ -73,6 +73,8 @@ h1 span{color:var(--orange)}
 .rsort::-webkit-scrollbar{display:none}
 .rsort button{appearance:none;flex:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-family:var(--f-label);font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:6px 10px;border-radius:8px;cursor:pointer;white-space:nowrap}
 .rsort button[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+:root[data-theme="dark"] .rsort button[aria-pressed="true"]{background:var(--orange);border-color:var(--orange)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .rsort button[aria-pressed="true"]{background:var(--orange);border-color:var(--orange)}}
 .rsort button i{font-style:normal;margin-left:4px}
 .rsec h3{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;background:#C83803;margin:0;padding:7px 14px;display:flex;justify-content:space-between}
 .rsec h3 span{opacity:.85;font-weight:600}
@@ -353,6 +355,8 @@ h1 span{color:var(--orange)}
 .iprac{grid-area:prac;display:flex;flex-wrap:wrap;gap:4px}
 .irow .iprac:empty{display:none}
 .ipill{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.idepth{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.04em;color:#AEB8CC;margin-left:6px;white-space:nowrap}
+.idepth.s1{color:#E2541B}
 .irsince{font-family:var(--f-label);font-weight:600;font-size:12px;letter-spacing:.04em;color:#AEB8CC;margin-left:6px;white-space:nowrap}
 .icleared{padding:10px 14px;font-size:14px;color:#C9D1E0;line-height:1.5;border-top:1px solid rgba(255,255,255,.1)}
 .icleared b{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5FD68E;margin-right:8px}
@@ -495,6 +499,7 @@ html{background:#0B162A!important}body{min-height:100vh}
 
   <section id="view-inj" hidden style="flex-direction:column;gap:12px">
     <div class="shead"><h2>Injury Report</h2><span class="rec" id="iweek"></span></div>
+    <div class="rsort" id="ifilter" role="toolbar" aria-label="Filter by depth chart"></div>
     <div id="ibody" style="display:flex;flex-direction:column;gap:12px"></div>
     <p class="snote">From the Bears' official injury report. Teams post practice reports Wednesday through Friday of game weeks, with game status (Out, Doubtful, Questionable) on Friday; this page picks them up within 2 hours. The latest news line under a player comes from ESPN. Practice: <b>DNP</b> did not practice, <b>LP</b> limited, <b>FP</b> full. Tap any Bears player to see his card.</p>
   </section>
@@ -1223,6 +1228,14 @@ function isCleared(pl, finalOut){
   if (past) return /^Available/.test(returnInfo(pl, finalOut));
   return finalOut && !/OUT|DOUBTFUL|QUESTIONABLE/.test(st);
 }
+// Starter / 2nd string / 3rd string from the depth chart, after the name (players on IR are usually off the chart).
+const depthTag = slug => {
+  const p=players[slug];
+  if (p && !p.extra && DEPTH[p.depth]) return `<span class="idepth${p.depth===0?" s1":""}">${esc(DEPTH[p.depth])}</span>`;
+  // Off the chart now (IR): show where he was before, from the app's saved depth charts.
+  const L=(DATA.lastDepth||{})[slug];
+  return L && DEPTH[L.depth] ? `<span class="idepth${L.depth===0?" s1":""}">Was ${esc(DEPTH[L.depth].toLowerCase())}</span>` : "";
+};
 function injRows(list, bears, finalOut){
   // Game statuses only appear on the final report of the week; until then, leave blanks blank.
   if (finalOut===undefined) finalOut = reportFinal(list);
@@ -1231,7 +1244,7 @@ function injRows(list, bears, finalOut){
       const canOpen = bears && pl.slug && players[pl.slug];
       return `<${canOpen?'button type="button"':'div'} class="irow${canOpen?" tap":""}" data-slug="${esc(pl.slug||"")}">
         <span class="inum">${pl.num?esc(pl.num):""}</span>
-        <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury)}</span></span>${noteHTML(pl, finalOut)}
+        <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small>${depthTag(pl.slug)}<span class="iinj">${esc(pl.injury)}</span></span>${noteHTML(pl, finalOut)}
         <span class="istat">${reportPill(pl, finalOut)}</span>
         <span class="iprac">${(pl.practice||[]).map(pracChip).join("")}</span>
       </${canOpen?"button":"div"}>`;
@@ -1253,7 +1266,7 @@ function resRow(pl){
     +(upd&&!isNaN(upd)?`<span class="pchip na">Updated <b>${upd.getMonth()+1}/${upd.getDate()}</b></span>`:"");
   return `<${t?'button type="button"':'div'} class="irow${t?" tap":""}" data-slug="${esc(pl.slug)}">
     <span class="inum">${esc(pl.num)}</span>
-    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small>${since}<span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>${noteHTML(pl)}
+    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small>${depthTag(pl.slug)}${since}<span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>${noteHTML(pl)}
     <span class="istat">${active?"":statusPill("OUT")}</span>
     <span class="iprac">${chips}</span>
   </${t?"button":"div"}>`;
@@ -1265,14 +1278,22 @@ function otherRow(pl){
   const chips=`<span class="pchip na">Source <b>ESPN</b></span>`+(upd&&!isNaN(upd)?`<span class="pchip na">Updated <b>${upd.getMonth()+1}/${upd.getDate()}</b></span>`:"");
   return `<${t?'button type="button"':'div'} class="irow${t?" tap":""}" data-slug="${esc(pl.slug)}">
     <span class="inum">${esc(pl.num)}</span>
-    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>${noteHTML(pl)}
+    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small>${depthTag(pl.slug)}<span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>${noteHTML(pl)}
     <span class="istat">${statusPill(/OUT|DOUBTFUL|QUESTIONABLE/.test(st)?st:"")}</span>
     <span class="iprac">${chips}</span>
   </${t?"button":"div"}>`;
 }
 function closeInjCard(){ document.querySelectorAll("#view-inj .rdetail").forEach(d=>d.remove()); document.querySelectorAll('#view-inj .irow[aria-expanded="true"], #view-inj .iclr[aria-expanded="true"]').forEach(r=>r.setAttribute("aria-expanded","false")); }
+// Filter by depth chart tag (current spot, or "Was …" for players on IR). Starters includes "Was starter".
+let IFILT="all";
+const depthOf = slug => { const p=players[slug]; if (p && !p.extra && DEPTH[p.depth]) return p.depth; const L=(DATA.lastDepth||{})[slug]; return L && DEPTH[L.depth] ? L.depth : null; };
+const IFILTERS=[["all","All"],["0","Starters"],["1","2nd string"],["2","3rd string"],["none","No tag"]];
+const passFilter = pl => { if (IFILT==="all") return true; const d=depthOf(pl.slug); return IFILT==="none" ? d==null : String(d)===IFILT; };
 function renderInjuries(){
   const v=document.getElementById("view-inj");
+  const fb=document.getElementById("ifilter");
+  fb.innerHTML=IFILTERS.map(([k,t])=>`<button type="button" data-k="${k}" aria-pressed="${IFILT===k}">${t}</button>`).join("");
+  fb.querySelectorAll("button").forEach(b=>b.onclick=()=>{ IFILT=b.dataset.k; closeInjCard(); renderInjuries(); });
   if (!INJ || !INJ.teams || !INJ.teams.length){ document.getElementById("ibody").innerHTML=`<p class="nempty">No injury report yet. It will appear after the next update.</p>`; return; }
   const bears=INJ.teams.find(t=>/chicago bears/i.test(t.team)) || INJ.teams[0];
   document.getElementById("iweek").textContent = INJ.week ? INJ.week.replace(/^WEEK/i,"Week").replace(/^PRESEASON WEEK/i,"Preseason week") : "";
@@ -1281,20 +1302,23 @@ function renderInjuries(){
   // (reported season-ending, or ESPN doesn't project a return this season).
   const seasonOut = pl => /season/i.test(returnInfo(pl));
   const byNum = l => l.slice().sort((a,b)=>n(a.num)-n(b.num));
-  const res=(INJ.reserves||[]).filter(r=>r.players.length && !/practice squad/i.test(r.list)).map(r=>{
-    if (!/reserve\/injured/i.test(r.list)) return `<div class="sec">${esc(resNames[r.list]||r.list)}</div>`+byNum(r.players).map(resRow).join("");
-    const back=r.players.filter(pl=>!seasonOut(pl)), done=r.players.filter(seasonOut);
+  const res=(INJ.reserves||[]).filter(r=>r.players.some(passFilter) && !/practice squad/i.test(r.list)).map(r=>{
+    const rp=r.players.filter(passFilter);
+    if (!/reserve\/injured/i.test(r.list)) return `<div class="sec">${esc(resNames[r.list]||r.list)}</div>`+byNum(rp).map(resRow).join("");
+    const back=rp.filter(pl=>!seasonOut(pl)), done=rp.filter(seasonOut);
     return (back.length?`<div class="sec">${esc(resNames[r.list])}</div>`+byNum(back).map(resRow).join(""):"")
       + (done.length?`<div class="sec">Injured Reserve - Out for the Season</div>`+byNum(done).map(resRow).join(""):"");
   }).join("");
   document.getElementById("ibody").innerHTML =
     (()=>{
-      const fin=reportFinal(bears.players), cleared=bears.players.filter(pl=>isCleared(pl,fin)), risk=bears.players.filter(pl=>!isCleared(pl,fin));
+      const fin=reportFinal(bears.players), shown=bears.players.filter(passFilter), cleared=shown.filter(pl=>isCleared(pl,fin)), risk=shown.filter(pl=>!isCleared(pl,fin));
+      if (IFILT!=="all" && !shown.length) return "";
       const clearedLine = cleared.length ? `<div class="icleared"><b>Cleared to play</b>${cleared.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(pl=>players[pl.slug]?`<button type="button" class="iclr" data-slug="${esc(pl.slug)}">${esc(pl.name)}</button>`:`<span>${esc(pl.name)}</span>`).join(", ")}</div>` : "";
       return `<div class="ilist"><div class="sec">Bears Game Report - Active Roster</div>${risk.length?injRows(risk,true,fin):`<p class="nempty">${bears.players.length?"Everyone on this week's report is cleared to play.":"No Bears players listed."}</p>`}${clearedLine}</div>`;
     })()
-    + ((INJ.others||[]).length?`<div class="ilist"><div class="sec">Other injuries · not on the official report yet</div>${INJ.others.slice().sort((a,b)=>n(a.num)-n(b.num)).map(otherRow).join("")}</div>`:"")
+    + ((INJ.others||[]).some(passFilter)?`<div class="ilist"><div class="sec">Other injuries · not on the official report yet</div>${INJ.others.filter(passFilter).sort((a,b)=>n(a.num)-n(b.num)).map(otherRow).join("")}</div>`:"")
     + (res?`<div class="ilist">${res}</div>`:"");
+  if (!document.getElementById("ibody").innerHTML.trim()) document.getElementById("ibody").innerHTML=`<p class="nempty">No injured players with this tag.</p>`;
 
   v.querySelectorAll(".irow.tap").forEach(b=>b.onclick=()=>{
     if (b.getAttribute("aria-expanded")==="true") { closeInjCard(); return; }

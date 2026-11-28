@@ -320,6 +320,12 @@ function irDatesFrom(transactions, names) {
 
 // IR placements older than ESPN's transaction feed keeps (confirmed from ESPN's injury notes at the time).
 const IR_KNOWN = { "coby-bryant": "2026-09-01" };
+// Depth chart spots just before IR, from the app's saved versions (players placed on IR after it started in October).
+const LAST_DEPTH_KNOWN = {
+  "cole-kmet": { depth: 0, pos: "TE", asOf: "10/6/2026" },
+  "dayo-odeyingbo": { depth: 0, pos: "DL", asOf: "10/6/2026" },
+  "kentavius-street": { depth: 1, pos: "DL", asOf: "10/31/2026" },
+};
 
 async function get(path) {
   const res = await fetch(BASE + path, {
@@ -589,10 +595,18 @@ async function main() {
     }
     if (Object.values(weeks).flat().length >= 200) nfl = { season: year, weeks };
   } catch (e) { console.warn("NFL schedule skipped:", e.message); }
+  // Each player's most recent depth chart spot, kept after he leaves the chart (e.g. goes on IR),
+  // so the Injuries tab can show who was a starter. Seeded with spots from the app's own history.
+  const lastDepth = { ...LAST_DEPTH_KNOWN, ...(previousData().lastDepth || {}) };
+  slots.forEach(sl => sl.list.forEach((slug, i) => {
+    if (i > 2) return;
+    const cur = lastDepth[slug];
+    if (!cur || cur.asOf !== asOf || i < cur.depth) lastDepth[slug] = { depth: i, pos: sl.pos, asOf };
+  }));
   const data = {
     asOf, season: year, built: new Date().toISOString().slice(0, 10),
     slots: slots.map(s => ({ ...s, list: s.list.filter(x => keep[x]) })).filter(s => s.list.length),
-    players: keep, stats: statsKept, schedule, news, injuries, records, standings, nfl,
+    players: keep, stats: statsKept, schedule, news, injuries, records, standings, nfl, lastDepth,
   };
   const tpl = readFileSync(new URL("./template.html", import.meta.url), "utf8");
   if (!tpl.includes("__BEARS_DATA__")) throw new Error("template.html is missing the __BEARS_DATA__ marker");
