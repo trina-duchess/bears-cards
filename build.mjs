@@ -262,6 +262,32 @@ function slimStandings(j) {
       w: st(e, "wins"), l: st(e, "losses"), t: st(e, "ties"), pct: st(e, "winPercent"), div: st(e, "vsdiv"), strk: st(e, "streak"), diff: st(e, "pointDifferential"), seed: st(e, "playoffSeed") }))
       .sort((a, b) => (+a.seed || 99) - (+b.seed || 99)) })) }));
 }
+// ESPN's latest injury news line for a player, when it's about the injury (not a game stat line).
+function espnInjuryNote(it) {
+  const c = String(it.shortComment || "").replace(/\s+/g, " ").trim();
+  if (c.length < 25) return "";
+  // "Turner (knee) ..." style mentions, or injury-news wording; game stat lines ("recorded seven tackles (five solo)") don't count.
+  const named = /\b[A-Z][\w.'-]+ \((?!coach)[a-z][^)]{1,40}\)/;
+  const words = /injur|\breturn|ruled out|out for|week-to-week|day-to-day|surgery|timeline|activated|designated to return|practice|questionable|doubtful|placed on|\bPUP\b|concussion protocol|expected to (miss|be out)/i;
+  return named.test(c) || words.test(c) ? c : "";
+}
+// Newest news story (any source in the News feed) about a player's injury status: his full name in the story,
+// and a headline about injury status (ruled out, week-to-week, IR, protocol, return...).
+const INJURY_NEWS = /rul(ed|es?) out|\b(is|are|remains?|will be|listed as) out\b|\bout (for|vs\.?|against|again|this week|indefinitely)\b|week-to-week|day-to-day|protocol|\bIR\b|injured reserve|surgery|season-ending|out for (the )?season|return(s|ed|ing)? (to|from)|(set|expected) to return|\bmiss(es|ing)?\b|timeline|expected back|questionable|doubtful|limited|did not practice|activated|designated to return|cleared|injury update|injury report/i;
+function injuryNewsFor(name, news, sinceDays = 30) {
+  const full = String(name).replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i, "").trim().toLowerCase();
+  const cutoff = Date.now() - sinceDays * 864e5;
+  let best = null;
+  for (const n of news || []) {
+    const t = new Date(n.published).getTime();
+    if (!(t > cutoff)) continue;
+    const txt = `${n.headline || ""} ${n.description || ""}`;
+    // His name anywhere in the story summary, and the headline itself is about injury status.
+    if (!txt.toLowerCase().includes(full) || !INJURY_NEWS.test(n.headline || "")) continue;
+    if (!best || t > new Date(best.published).getTime()) best = n;
+  }
+  return best ? { note: String(best.headline).replace(/\s+\|\s+[^|]+$/, ""), noteDate: best.published.slice(0, 10), noteSrc: best.source || "" } : null;
+}
 // ==PARSE END==
 
 async function get(path) {
@@ -394,11 +420,12 @@ async function main() {
   if (injuries) for (const t of injuries.teams) for (const pl of t.players) if (pl.slug && players[pl.slug]) pl.num = players[pl.slug].num;
   // Bears only: drop the opponent's half of the report.
   if (injuries) injuries = { ...injuries, teams: injuries.teams.filter(t => /chicago bears/i.test(t.team)).slice(0, 1) };
-  // What the injury is for players on reserve lists (the official report only covers the active roster).
+  // What the injury is for players on reserve lists (the official report only covers the active roster),
+  // plus ESPN's latest news line on every injured player (return timelines and the like).
   if (injuries && injuries.reserves) {
     const prevInj = {};
-    for (const r of (previousData().injuries || {}).reserves || []) for (const pl of r.players) if (pl.injury) prevInj[pl.slug] = { injury: pl.injury, espn: pl.espn || "", updated: pl.updated || "" };
-    const byName = {};
+    for (const r of (previousData().injuries || {}).reserves || []) for (const pl of r.players) if (pl.injury) prevInj[pl.slug] = { injury: pl.injury, espn: pl.espn || "", updated: pl.updated || "", ...(pl.note ? { note: pl.note, noteDate: pl.noteDate } : {}) };
+    const byName = {}, notes = {};
     try {
       const j = u => fetch(u.replace(/^http:/, "https:")).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
       const list = await j("https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/teams/3/injuries?limit=200");
@@ -406,16 +433,29 @@ async function main() {
       for (let k = 0; k < refs.length; k += 10) {
         const batch = await Promise.all(refs.slice(k, k + 10).map(u => j(u).catch(() => null)));
         await Promise.all(batch.filter(Boolean).map(async it => {
-          const label = espnInjuryLabel(it);
-          if (!label || !it.athlete) return;
+          const label = espnInjuryLabel(it), note = espnInjuryNote(it);
+          const fresh = it.date && Date.now() - new Date(it.date).getTime() < 45 * 864e5;
+          if ((!label && !(note && fresh)) || !it.athlete) return;
           const a = await j(it.athlete.$ref).catch(() => null);
           const key = a && nameKey(a.displayName || a.fullName);
-          if (key && !byName[key]) byName[key] = { injury: label, espn: it.status || "", updated: (it.date || "").slice(0, 10) }; // newest first
+          if (!key) return;
+          const when = (it.date || "").slice(0, 10);
+          if (label && (!byName[key] || when > byName[key].updated)) byName[key] = { injury: label, espn: it.status || "", updated: when };
+          if (note && fresh && (!notes[key] || when > notes[key].noteDate)) notes[key] = { note, noteDate: when };
         }));
       }
       console.log(`ESPN injury labels: ${Object.keys(byName).length}`);
     } catch (e) { console.warn("ESPN injuries skipped:", e.message); }
-    injuries.reserves = injuries.reserves.map(r => ({ ...r, players: r.players.map(pl => ({ ...pl, injury: "", ...(byName[nameKey(pl.name)] || prevInj[pl.slug] || {}) })) }));
+    injuries.reserves = injuries.reserves.map(r => ({ ...r, players: r.players.map(pl => ({ ...pl, injury: "", ...(byName[nameKey(pl.name)] || prevInj[pl.slug] || {}), ...(notes[nameKey(pl.name)] || {}) })) }));
+    // The latest news on game-report players too (how long they'll be out, return plans).
+    for (const t of injuries.teams || []) for (const pl of t.players) Object.assign(pl, notes[nameKey(pl.name)] || {});
+    // If a news story in the feed (Tribune, Sun-Times, CBS Sports...) is newer than ESPN's note, show it instead.
+    const allInj = [...(injuries.teams || []).flatMap(t => t.players), ...injuries.reserves.flatMap(r => r.players)];
+    for (const pl of allInj) {
+      const n = injuryNewsFor(pl.name, news);
+      if (n && (!pl.noteDate || n.noteDate > pl.noteDate)) Object.assign(pl, n);
+      else if (pl.note && !pl.noteSrc) pl.noteSrc = "ESPN";
+    }
   }
 
   // Keep every player on the roster page, practice squad included (they get their own section on the Roster tab).

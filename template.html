@@ -335,7 +335,7 @@ h1 span{color:var(--orange)}
 @media (max-width:340px){.sttab .hx2{display:none}}
 .ilist{display:flex;flex-direction:column;background:#0B162A;border-radius:12px;overflow:hidden}
 .ilist .sec{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;padding:7px 14px;background:#C83803}
-.irow{appearance:none;border:0;border-bottom:1px solid rgba(255,255,255,.1);border-left:4px solid transparent;background:#0B162A;color:#fff;font:inherit;text-align:left;display:grid;grid-template-columns:36px minmax(0,1fr) auto;grid-template-areas:"num name stat" ". prac prac";align-items:center;gap:4px 10px;padding:9px 14px 9px 10px;width:100%}
+.irow{appearance:none;border:0;border-bottom:1px solid rgba(255,255,255,.1);border-left:4px solid transparent;background:#0B162A;color:#fff;font:inherit;text-align:left;display:grid;grid-template-columns:36px minmax(0,1fr) auto;grid-template-areas:"num name stat" ". note note" ". prac prac";align-items:center;gap:4px 10px;padding:9px 14px 9px 10px;width:100%}
 .irow:nth-of-type(even){background:#13213B}
 .irow.tap{cursor:pointer}
 .irow.tap:hover,.irow[aria-expanded="true"]{background:#1F3358;border-left-color:#C83803}
@@ -343,6 +343,8 @@ h1 span{color:var(--orange)}
 .iname{grid-area:name;font-weight:600;font-size:15px;line-height:1.25;min-width:0}
 .iname small{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.06em;color:#AEB8CC;margin-left:4px}
 .iinj{display:block;font-weight:400;font-size:13px;color:#AEB8CC}
+.inote{grid-area:note;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;padding-left:8px;border-left:2px solid #E2541B;font-weight:400;font-size:13px;line-height:1.35;color:#D5DCE8}
+.inote b{font-family:var(--f-label);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#E2541B;margin-right:4px}
 .istat{grid-area:stat}
 .iprac{grid-area:prac;display:flex;flex-wrap:wrap;gap:4px}
 .irow .iprac:empty{display:none}
@@ -485,7 +487,7 @@ html{background:#0B162A!important}body{min-height:100vh}
   <section id="view-inj" hidden style="flex-direction:column;gap:12px">
     <div class="shead"><h2>Injury Report</h2><span class="rec" id="iweek"></span></div>
     <div id="ibody" style="display:flex;flex-direction:column;gap:12px"></div>
-    <p class="snote">From the Bears' official injury report. Teams post practice reports Wednesday through Friday of game weeks, with game status (Out, Doubtful, Questionable) on Friday; this page picks them up within 2 hours. Practice: <b>DNP</b> did not practice, <b>LP</b> limited, <b>FP</b> full. Tap any Bears player to see his card.</p>
+    <p class="snote">From the Bears' official injury report. Teams post practice reports Wednesday through Friday of game weeks, with game status (Out, Doubtful, Questionable) on Friday; this page picks them up within 2 hours. The latest news line under a player comes from ESPN. Practice: <b>DNP</b> did not practice, <b>LP</b> limited, <b>FP</b> full. Tap any Bears player to see his card.</p>
   </section>
 
   <p class="src">Sources: <a href="https://www.chicagobears.com/team/depth-chart" target="_blank" rel="noopener">chicagobears.com depth chart</a>, <a href="https://www.chicagobears.com/team/players-roster/" target="_blank" rel="noopener">roster</a> and <a id="statslink" href="https://www.chicagobears.com/team/stats/" target="_blank" rel="noopener">regular-season stats</a>. <span id="srcinfo"></span></p>
@@ -1141,6 +1143,10 @@ const INJ = DATA.injuries || null;
 const STATUS_ORDER = {OUT:0, DOUBTFUL:1, QUESTIONABLE:2};
 const statusPill = s => { const k=String(s||"").toUpperCase(); return /OUT|DOUBTFUL|QUESTIONABLE/.test(k) ? `<span class="ipill ${k.toLowerCase()}">${k.charAt(0)+k.slice(1).toLowerCase()}</span>` : ""; };
 const pracChip = ([d,v]) => { const k=String(v||"").toUpperCase(); const cls=k==="DNP"?"dnp":k==="LP"?"lp":k==="FP"?"fp":"na"; return `<span class="pchip ${cls}">${esc(d)} <b>${k==="(-)"||!k?"–":esc(k)}</b></span>`; };
+// ESPN's latest news on the injury (return timeline etc.), with its date.
+// The injury itself is already on the row, so drop ESPN's "(knee)" from the note.
+const noteText = t => String(t||"").replace(/\s\((?!coach)[a-z][^)]{0,40}\)/, "");
+const noteHTML = pl => pl.note ? `<span class="inote"><b>${pl.noteDate?esc(new Date(pl.noteDate+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})):"Latest"}${pl.noteSrc?" · "+esc(pl.noteSrc):""}</b>${esc(noteText(pl.note))}</span>` : "";
 function injRows(list, bears){
   // Game statuses only appear on the final report of the week; until then, leave blanks blank.
   const finalOut = list.some(pl=>String(pl.status||"").trim());
@@ -1149,7 +1155,7 @@ function injRows(list, bears){
       const canOpen = bears && pl.slug && players[pl.slug];
       return `<${canOpen?'button type="button"':'div'} class="irow${canOpen?" tap":""}" data-slug="${esc(pl.slug||"")}">
         <span class="inum">${pl.num?esc(pl.num):""}</span>
-        <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury)}</span></span>
+        <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury)}</span></span>${noteHTML(pl)}
         <span class="istat">${statusPill(pl.status) || (finalOut?`<span class="ipill none">No designation</span>`:"")}</span>
         <span class="iprac">${(pl.practice||[]).map(pracChip).join("")}</span>
       </${canOpen?"button":"div"}>`;
@@ -1166,7 +1172,7 @@ function resRow(pl){
     +(upd&&!isNaN(upd)?`<span class="pchip na">Updated <b>${upd.getMonth()+1}/${upd.getDate()}</b></span>`:"");
   return `<${t?'button type="button"':'div'} class="irow${t?" tap":""}" data-slug="${esc(pl.slug)}">
     <span class="inum">${esc(pl.num)}</span>
-    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>
+    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>${noteHTML(pl)}
     <span class="istat">${active?"":statusPill("OUT")}</span>
     <span class="iprac">${chips}</span>
   </${t?"button":"div"}>`;
