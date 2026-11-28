@@ -269,7 +269,11 @@ function espnInjuryNote(it) {
   // "Turner (knee) ..." style mentions, or injury-news wording; game stat lines ("recorded seven tackles (five solo)") don't count.
   const named = /\b[A-Z][\w.'-]+ \((?!coach)[a-z][^)]{1,40}\)/;
   const words = /injur|\breturn|ruled out|out for|week-to-week|day-to-day|surgery|timeline|activated|designated to return|practice|questionable|doubtful|placed on|\bPUP\b|concussion protocol|expected to (miss|be out)/i;
-  return named.test(c) || words.test(c) ? c : "";
+  // Also count a comment that names his injury ("a bruise on his abdomen") or describes how he's feeling.
+  const type = String(it.details?.type || "").toLowerCase().split(/\s*[-\/]\s*/)[0];
+  const mentionsType = type && !/undisclosed|not specified|coach|other/.test(type) && c.toLowerCase().includes(type);
+  const health = /\b(hurt|bruise|sore|soreness|banged up|feels? fine|is fine|he's fine|\bfine\b|x-rays?|mri|second opinion|left the game|exited|played through|limp|pain|tweak)/i;
+  return named.test(c) || words.test(c) || mentionsType || health.test(c) ? c : "";
 }
 // Newest news story (any source in the News feed) about a player's injury status: his full name in the story,
 // and a headline about injury status (ruled out, week-to-week, IR, protocol, return...).
