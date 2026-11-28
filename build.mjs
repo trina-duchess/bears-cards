@@ -274,21 +274,52 @@ function espnInjuryNote(it) {
 // Newest news story (any source in the News feed) about a player's injury status: his full name in the story,
 // and a headline about injury status (ruled out, week-to-week, IR, protocol, return...).
 const INJURY_NEWS = /rul(ed|es?) out|\b(is|are|remains?|will be|listed as) out\b|\bout (for|vs\.?|against|again|this week|indefinitely)\b|week-to-week|day-to-day|protocol|\bIR\b|injured reserve|surgery|season-ending|out for (the )?season|return(s|ed|ing)? (to|from)|(set|expected) to return|\bmiss(es|ing)?\b|timeline|expected back|questionable|doubtful|limited|did not practice|activated|designated to return|cleared|injury update|injury report/i;
-function injuryNewsFor(name, news, sinceDays = 30) {
-  const full = String(name).replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i, "").trim().toLowerCase();
+// Only stories about this one player: his full name in the headline, no other Bears player named,
+// and not a roundup ("injury report", "players ruled out", "updates on X and Y").
+const fullName = n => String(n).replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i, "").trim().toLowerCase();
+function injuryNewsFor(name, news, rosterNames = [], sinceDays = 30) {
+  const full = fullName(name);
+  const others = rosterNames.map(fullName).filter(x => x && x !== full);
   const cutoff = Date.now() - sinceDays * 864e5;
   let best = null;
   for (const n of news || []) {
     const t = new Date(n.published).getTime();
     if (!(t > cutoff)) continue;
-    const txt = `${n.headline || ""} ${n.description || ""}`;
-    // His name anywhere in the story summary, and the headline itself is about injury status.
-    if (!txt.toLowerCase().includes(full) || !INJURY_NEWS.test(n.headline || "")) continue;
+    const h = String(n.headline || ""), hl = h.toLowerCase();
+    if (!hl.includes(full) || !INJURY_NEWS.test(h)) continue;
+    if (others.some(o => hl.includes(o))) continue;
+    if (/\bplayers\b|injury report|injury updates?|inactives|\band\b.*\b(injur|update)/i.test(h)) continue;
     if (!best || t > new Date(best.published).getTime()) best = n;
   }
   return best ? { note: String(best.headline).replace(/\s+\|\s+[^|]+$/, ""), noteDate: best.published.slice(0, 10), noteSrc: best.source || "" } : null;
 }
+// Team transactions (ESPN) -> when each player was last placed on injured reserve, and designated to return.
+// Descriptions read like "Placed RB Zavier Scott on injured reserve." or "Designated DB X to return from injured reserve."
+function irDatesFrom(transactions, names) {
+  const out = {};
+  const txs = (transactions || []).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  for (const t of txs) {
+    const day = String(t.date || "").slice(0, 10);
+    for (const sentence of String(t.description || "").split(/(?<=\.)\s+/)) {
+      const placed = /\b(placed|reverted|moved)\b.*\b(on|to) injured reserve/i.test(sentence);
+      const dtr = /\bdesignated\b.*\breturn from injured reserve/i.test(sentence);
+      const off = /\b(activated|reinstated|released|waived)\b.*\bfrom injured reserve/i.test(sentence);
+      if (!placed && !dtr && !off) continue;
+      for (const nm of names) {
+        if (!sentence.toLowerCase().includes(fullName(nm))) continue;
+        const o = out[nm] ||= {};
+        if (placed) { o.irDate = day; delete o.dtrDate; }
+        if (dtr) o.dtrDate = day;
+        if (off) { delete o.irDate; delete o.dtrDate; }
+      }
+    }
+  }
+  return out;
+}
 // ==PARSE END==
+
+// IR placements older than ESPN's transaction feed keeps (confirmed from ESPN's injury notes at the time).
+const IR_KNOWN = { "coby-bryant": "2026-09-01" };
 
 async function get(path) {
   const res = await fetch(BASE + path, {
@@ -425,7 +456,7 @@ async function main() {
   if (injuries && injuries.reserves) {
     const prevInj = {};
     for (const r of (previousData().injuries || {}).reserves || []) for (const pl of r.players) if (pl.injury) prevInj[pl.slug] = { injury: pl.injury, espn: pl.espn || "", updated: pl.updated || "", ...(pl.note ? { note: pl.note, noteDate: pl.noteDate } : {}) };
-    const byName = {}, notes = {};
+    const byName = {}, notes = {}, rets = {}, irNotes = {};
     try {
       const j = u => fetch(u.replace(/^http:/, "https:")).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); });
       const list = await j("https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/teams/3/injuries?limit=200");
@@ -440,19 +471,60 @@ async function main() {
           const key = a && nameKey(a.displayName || a.fullName);
           if (!key) return;
           const when = (it.date || "").slice(0, 10);
-          if (label && (!byName[key] || when > byName[key].updated)) byName[key] = { injury: label, espn: it.status || "", updated: when };
+          if (label && (!byName[key] || when > byName[key].updated)) {
+            byName[key] = { injury: label, espn: it.status || "", updated: when };
+            // ESPN's projected return date (a date at the end of the season means "out for the season").
+            rets[key] = /^\d{4}-\d{2}-\d{2}/.test(it.details?.returnDate || "") ? it.details.returnDate.slice(0, 10) : "";
+          }
           if (note && fresh && (!notes[key] || when > notes[key].noteDate)) notes[key] = { note, noteDate: when };
+          // "The Bears placed Large (undisclosed) on injured reserve Tuesday." -> the day he went on IR.
+          if (/\b(placed|reverted)\b.*injured reserve|placed on injured reserve/i.test(it.shortComment || "")) irNotes[key] = when;
         }));
       }
       console.log(`ESPN injury labels: ${Object.keys(byName).length}`);
     } catch (e) { console.warn("ESPN injuries skipped:", e.message); }
     injuries.reserves = injuries.reserves.map(r => ({ ...r, players: r.players.map(pl => ({ ...pl, injury: "", ...(byName[nameKey(pl.name)] || prevInj[pl.slug] || {}), ...(notes[nameKey(pl.name)] || {}) })) }));
+    // When each IR player was placed there (and designated to return): the team's transaction log first,
+    // then ESPN's "placed on injured reserve" note, then what the last update knew.
+    try {
+      const prevIR = {};
+      for (const r of (previousData().injuries || {}).reserves || []) for (const pl of r.players) if (pl.irDate) prevIR[pl.slug] = { irDate: pl.irDate, dtrDate: pl.dtrDate };
+      let tx = [];
+      try {
+        const r = await fetch("https://site.api.espn.com/apis/site/v2/sports/football/nfl/transactions?team=3&limit=500");
+        if (r.ok) tx = (await r.json()).transactions || [];
+      } catch (e) { console.warn("Transactions skipped:", e.message); }
+      const irPlayers = injuries.reserves.filter(r => /reserve\/injured/i.test(r.list)).flatMap(r => r.players);
+      const fromTx = irDatesFrom(tx, irPlayers.map(p => p.name));
+      for (const pl of irPlayers) {
+        const t = fromTx[pl.name] || {}, k = nameKey(pl.name), prev = prevIR[pl.slug] || {};
+        const irDate = t.irDate || irNotes[k] || prev.irDate || IR_KNOWN[pl.slug] || "";
+        if (irDate) pl.irDate = irDate;
+        const dtr = t.dtrDate || (prev.irDate === irDate ? prev.dtrDate : "");
+        if (dtr && (!irDate || dtr >= irDate)) pl.dtrDate = dtr;
+      }
+    } catch (e) { console.warn("IR dates skipped:", e.message); }
     // The latest news on game-report players too (how long they'll be out, return plans).
     for (const t of injuries.teams || []) for (const pl of t.players) Object.assign(pl, notes[nameKey(pl.name)] || {});
-    // If a news story in the feed (Tribune, Sun-Times, CBS Sports...) is newer than ESPN's note, show it instead.
-    const allInj = [...(injuries.teams || []).flatMap(t => t.players), ...injuries.reserves.flatMap(r => r.players)];
+    for (const pl of [...(injuries.teams || []).flatMap(t => t.players), ...injuries.reserves.flatMap(r => r.players)]) {
+      const k = nameKey(pl.name); if (rets[k]) pl.ret = rets[k]; else delete pl.ret;
+    }
+    // If a story in the feed about just this player (Tribune, Sun-Times, CBS Sports...) is newer than ESPN's note, use it.
+    // Players ESPN reports as hurt who aren't on the official report or a reserve list yet
+    // (for example, hurt in the last game, before the next week's report comes out).
+    const listedKeys = new Set([...(injuries.teams || []).flatMap(t => t.players), ...injuries.reserves.flatMap(r => r.players)].map(p => nameKey(p.name)));
+    const lists = rosterLists(rosterHtml);
+    injuries.others = Object.entries(players).filter(([slug, p]) => {
+      const k = nameKey(p.name), e = byName[k];
+      if (listedKeys.has(k) || !e || /^active$/i.test(e.espn) || /coach/i.test(e.injury) || /practice squad/i.test(lists[slug] || "")) return false;
+      return e.updated && Date.now() - new Date(e.updated).getTime() < 21 * 864e5;
+    }).map(([slug, p]) => {
+      const k = nameKey(p.name);
+      return { name: p.name, slug, num: p.num, pos: p.pos, ...byName[k], ...(notes[k] || {}), ...(rets[k] ? { ret: rets[k] } : {}) };
+    });
+    const allInj = [...(injuries.teams || []).flatMap(t => t.players), ...injuries.reserves.flatMap(r => r.players), ...injuries.others];
     for (const pl of allInj) {
-      const n = injuryNewsFor(pl.name, news);
+      const n = injuryNewsFor(pl.name, news, Object.values(players).map(p => p.name));
       if (n && (!pl.noteDate || n.noteDate > pl.noteDate)) Object.assign(pl, n);
       else if (pl.note && !pl.noteSrc) pl.noteSrc = "ESPN";
     }

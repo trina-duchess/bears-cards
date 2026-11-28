@@ -343,12 +343,21 @@ h1 span{color:var(--orange)}
 .iname{grid-area:name;font-weight:600;font-size:15px;line-height:1.25;min-width:0}
 .iname small{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.06em;color:#AEB8CC;margin-left:4px}
 .iinj{display:block;font-weight:400;font-size:13px;color:#AEB8CC}
-.inote{grid-area:note;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;padding-left:8px;border-left:2px solid #E2541B;font-weight:400;font-size:13px;line-height:1.35;color:#D5DCE8}
+.inote{grid-area:note;display:block;padding-left:8px;border-left:2px solid #E2541B;font-weight:400;font-size:13px;line-height:1.35;color:#D5DCE8}
+.inote .itxt{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.inote .iret{display:block;margin-top:3px;font-weight:600;color:#fff}
+.inote .iret.unk{color:#AEB8CC;font-weight:500}
+.inote .iret.ok{color:#5FD68E}
 .inote b{font-family:var(--f-label);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#E2541B;margin-right:4px}
 .istat{grid-area:stat}
 .iprac{grid-area:prac;display:flex;flex-wrap:wrap;gap:4px}
 .irow .iprac:empty{display:none}
 .ipill{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.irsince{font-family:var(--f-label);font-weight:600;font-size:12px;letter-spacing:.04em;color:#AEB8CC;margin-left:6px;white-space:nowrap}
+.icleared{padding:10px 14px;font-size:14px;color:#C9D1E0;line-height:1.5;border-top:1px solid rgba(255,255,255,.1)}
+.icleared b{font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#5FD68E;margin-right:8px}
+.icleared .iclr{appearance:none;border:0;background:none;padding:0;font:inherit;color:#fff;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:3px;cursor:pointer}
+.ipill.avail{background:#1E7A46;color:#fff}
 .ipill.out{background:#B00020;color:#fff}
 .ipill.doubtful{background:#E2541B;color:#fff}
 .ipill.none{background:rgba(255,255,255,.12);color:#AEB8CC}
@@ -1143,20 +1152,87 @@ const INJ = DATA.injuries || null;
 const STATUS_ORDER = {OUT:0, DOUBTFUL:1, QUESTIONABLE:2};
 const statusPill = s => { const k=String(s||"").toUpperCase(); return /OUT|DOUBTFUL|QUESTIONABLE/.test(k) ? `<span class="ipill ${k.toLowerCase()}">${k.charAt(0)+k.slice(1).toLowerCase()}</span>` : ""; };
 const pracChip = ([d,v]) => { const k=String(v||"").toUpperCase(); const cls=k==="DNP"?"dnp":k==="LP"?"lp":k==="FP"?"fp":"na"; return `<span class="pchip ${cls}">${esc(d)} <b>${k==="(-)"||!k?"–":esc(k)}</b></span>`; };
-// ESPN's latest news on the injury (return timeline etc.), with its date.
-// The injury itself is already on the row, so drop ESPN's "(knee)" from the note.
-const noteText = t => String(t||"").replace(/\s\((?!coach)[a-z][^)]{0,40}\)/, "");
-const noteHTML = pl => pl.note ? `<span class="inote"><b>${pl.noteDate?esc(new Date(pl.noteDate+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})):"Latest"}${pl.noteSrc?" · "+esc(pl.noteSrc):""}</b>${esc(noteText(pl.note))}</span>` : "";
-function injRows(list, bears){
+// One line per player about that player only: a news item about him (ESPN or a single-player story),
+// or, failing that, a sentence built from the official report; plus ESPN's projected return game.
+// Drop the "(knee)" (already on the row) and the reporter credit at the end ("…, Adam Schefter of ESPN reports.").
+const noteText = t => String(t||"").replace(/\s\((?!coach)[a-z][^)]{0,40}\)/, "")
+  .replace(/,(["”]?)\s+(?:[A-Z][\w.'-]*\s+){1,3}(?:and\s+(?:[A-Z][\w.'-]*\s+){1,3})?of\s+[^,]+?\s+reports?\.?$/, ".$1")
+  .replace(/,\s+per\s+[^,]+\.?$/, ".");
+const shortDate = d => d.toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:PT});
+const dayKey = d => new Intl.DateTimeFormat("en-CA",{timeZone:PT}).format(d);
+const isThanksgiving = d => { const x=new Date(d.toLocaleString("en-US",{timeZone:PT})); return x.getMonth()===10 && x.getDay()===4 && x.getDate()>=22 && x.getDate()<=28; };
+const REG_GAMES = () => SCHED.filter(g=>!g.bye && g.kickoff && g.season!=="PRE");
+function gameName(g, withDay){
+  const k=new Date(g.kickoff), opp=g.opp?`the ${g.opp}`:"them";
+  const soon = k-Date.now() > 0 && k-Date.now() < 6*864e5;
+  const when = isThanksgiving(k) ? "Thanksgiving game" : soon ? `${fmt(k,{weekday:"long"})}'s game` : `${g.opp||""} game`.trim();
+  const base = isThanksgiving(k)||soon ? `${when} against ${opp}` : `${when}`;
+  return withDay && !soon ? `${base} on ${shortDate(k)}` : base;
+}
+function reportGame(){ const w=String((INJ||{}).week||"").toUpperCase(); return REG_GAMES().find(g=>String(g.week).toUpperCase()===w) || null; }
+function statusLine(pl, finalOut){
+  const g=reportGame(); if(!g) return "";
+  const k=new Date(g.kickoff), past=Date.now()>k.getTime()+4*3600e3, st=String(pl.status||"").toUpperCase(), gn=gameName(g,false), nm=pl.name;
+  if (st==="OUT") return past ? `${nm} missed the ${gn}.` : `${nm} is out for the ${gn}.`;
+  if (st==="DOUBTFUL"||st==="QUESTIONABLE") return past ? `${nm} was ${st.toLowerCase()} for the ${gn}.` : `${nm} is ${st.toLowerCase()} for the ${gn}.`;
+  if (finalOut) return past ? `${nm} was cleared to play in the ${gn}.` : `${nm} is expected to play in the ${gn}.`;
+  return "";
+}
+// When he'll be back, for every injured player: a reported timeline, ESPN's projected return game,
+// "available" once he's cleared, or "not known".
+function returnInfo(pl, finalOut){
+  const games=REG_GAMES(), today=dayKey(new Date()), note=String(pl.note||"");
+  if (/rest of the season|season-ending|out for the season|out for the year/i.test(note)) return "Out for the season (reported)";
+  const st=String(pl.status||"").toUpperCase(), g=reportGame();
+  if (Array.isArray(pl.practice) && g) {
+    const past=Date.now()>new Date(g.kickoff).getTime()+4*3600e3;
+    if (!/OUT|DOUBTFUL/.test(st) && (past || (finalOut && !st))) return "Available now";
+    if (!past && st==="QUESTIONABLE") return `Game-time decision for the ${gameName(g,false)}`;
+  }
+  if (/^active$/i.test(pl.espn||"")) return "Available now";
+  if (pl.ret && games.length && pl.ret > today) {
+    if (pl.ret > dayKey(new Date(games[games.length-1].kickoff))) return "Not expected back this season (ESPN projection)";
+    const r=games.find(x=>dayKey(new Date(x.kickoff))>=pl.ret);
+    if (r) return `${gameName(r,true).replace(/^./,c=>c.toUpperCase())} (ESPN projection)`;
+  }
+  return "Return date not known";
+}
+function noteHTML(pl, finalOut){
+  const g=reportGame();
+  // A news item counts if it came out during this game week (reserve players: any recent item).
+  const weekStart = g && Array.isArray(pl.practice) ? dayKey(new Date(new Date(g.kickoff).getTime()-6*864e5)) : "";
+  const useNote = pl.note && (!weekStart || !pl.noteDate || pl.noteDate >= weekStart);
+  let label, text;
+  if (useNote) { label=(pl.noteDate?shortDate(new Date(pl.noteDate+"T12:00:00")):"Latest")+(pl.noteSrc?" · "+pl.noteSrc:""); text=noteText(pl.note); }
+  else { text=statusLine(pl, finalOut); label=text?"Injury report":""; }
+  const ret=returnInfo(pl, finalOut);
+  return `<span class="inote">${text?`<span class="itxt"><b>${esc(label)}</b>${esc(text)}</span>`:""}<span class="iret${/not known/.test(ret)?" unk":/Available/.test(ret)?" ok":""}"><b>Return</b>${esc(ret)}</span></span>`;
+}
+// Game-status tag. Before the game: the team's status (Out, Doubtful, Questionable).
+// After the game: where he stands now, matching the Return line: red "Out" if he's still out,
+// green "Available" if he's cleared. Next week's report replaces these.
+function reportPill(pl, finalOut){
+  const g=reportGame(), past=g && Date.now()>new Date(g.kickoff).getTime()+4*3600e3;
+  if (past) return /^Available/.test(returnInfo(pl, finalOut)) ? `<span class="ipill avail">Available</span>` : `<span class="ipill out">Out</span>`;
+  return statusPill(pl.status) || (finalOut?`<span class="ipill none">No designation</span>`:"");
+}
+// Cleared to play: no game status on the final report, or (after the game) available now.
+const reportFinal = list => list.some(pl=>String(pl.status||"").trim());
+function isCleared(pl, finalOut){
+  const st=String(pl.status||"").toUpperCase(), g=reportGame(), past=g && Date.now()>new Date(g.kickoff).getTime()+4*3600e3;
+  if (past) return /^Available/.test(returnInfo(pl, finalOut));
+  return finalOut && !/OUT|DOUBTFUL|QUESTIONABLE/.test(st);
+}
+function injRows(list, bears, finalOut){
   // Game statuses only appear on the final report of the week; until then, leave blanks blank.
-  const finalOut = list.some(pl=>String(pl.status||"").trim());
+  if (finalOut===undefined) finalOut = reportFinal(list);
   return list.slice().sort((a,b)=>(STATUS_ORDER[String(a.status).toUpperCase()]??9)-(STATUS_ORDER[String(b.status).toUpperCase()]??9)||a.name.localeCompare(b.name))
     .map(pl=>{
       const canOpen = bears && pl.slug && players[pl.slug];
       return `<${canOpen?'button type="button"':'div'} class="irow${canOpen?" tap":""}" data-slug="${esc(pl.slug||"")}">
         <span class="inum">${pl.num?esc(pl.num):""}</span>
-        <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury)}</span></span>${noteHTML(pl)}
-        <span class="istat">${statusPill(pl.status) || (finalOut?`<span class="ipill none">No designation</span>`:"")}</span>
+        <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury)}</span></span>${noteHTML(pl, finalOut)}
+        <span class="istat">${reportPill(pl, finalOut)}</span>
         <span class="iprac">${(pl.practice||[]).map(pracChip).join("")}</span>
       </${canOpen?"button":"div"}>`;
     }).join("");
@@ -1167,26 +1243,57 @@ function resRow(pl){
   const t=players[pl.slug], list=(INJ.reserves.find(r=>r.players.includes(pl))||{}).list||"";
   const active=/^active$/i.test(pl.espn||"");
   const upd=pl.updated?new Date(pl.updated+"T12:00:00"):null;
+  const md = d => { const x=new Date(d+"T12:00:00"); return isNaN(x)?"":x.toLocaleDateString("en-US",{month:"short",day:"numeric"}); };
+  const since = pl.irDate && /reserve\/injured/i.test(list) ? `<span class="irsince">IR since ${esc(md(pl.irDate))}</span>` : "";
+  // Designated to return: he can practice, and must be activated within 21 days or he stays on IR for the season.
+  const dtrEnd = pl.dtrDate ? md(new Date(new Date(pl.dtrDate+"T12:00:00").getTime()+21*864e5).toISOString().slice(0,10)) : "";
   const chips=`<span class="pchip na">List <b>${esc(RES_TAG(list))}</b></span>`
+    +(pl.dtrDate?`<span class="pchip fp">Designated to return <b>${esc(md(pl.dtrDate))}</b> · activate by <b>${esc(dtrEnd)}</b></span>`:"")
     +(active?`<span class="pchip fp">Status <b>Active</b></span>`:"")
     +(upd&&!isNaN(upd)?`<span class="pchip na">Updated <b>${upd.getMonth()+1}/${upd.getDate()}</b></span>`:"");
   return `<${t?'button type="button"':'div'} class="irow${t?" tap":""}" data-slug="${esc(pl.slug)}">
     <span class="inum">${esc(pl.num)}</span>
-    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>${noteHTML(pl)}
+    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small>${since}<span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>${noteHTML(pl)}
     <span class="istat">${active?"":statusPill("OUT")}</span>
     <span class="iprac">${chips}</span>
   </${t?"button":"div"}>`;
 }
-function closeInjCard(){ document.querySelectorAll("#view-inj .rdetail").forEach(d=>d.remove()); document.querySelectorAll('#view-inj .irow[aria-expanded="true"]').forEach(r=>r.setAttribute("aria-expanded","false")); }
+// Hurt per ESPN, but not on the official report or a reserve list yet.
+function otherRow(pl){
+  const t=players[pl.slug], st=String(pl.espn||"").toUpperCase();
+  const upd=pl.updated?new Date(pl.updated+"T12:00:00"):null;
+  const chips=`<span class="pchip na">Source <b>ESPN</b></span>`+(upd&&!isNaN(upd)?`<span class="pchip na">Updated <b>${upd.getMonth()+1}/${upd.getDate()}</b></span>`:"");
+  return `<${t?'button type="button"':'div'} class="irow${t?" tap":""}" data-slug="${esc(pl.slug)}">
+    <span class="inum">${esc(pl.num)}</span>
+    <span class="iname">${esc(pl.name)} <small>${esc(pl.pos)}</small><span class="iinj">${esc(pl.injury||"Not disclosed")}</span></span>${noteHTML(pl)}
+    <span class="istat">${statusPill(/OUT|DOUBTFUL|QUESTIONABLE/.test(st)?st:"")}</span>
+    <span class="iprac">${chips}</span>
+  </${t?"button":"div"}>`;
+}
+function closeInjCard(){ document.querySelectorAll("#view-inj .rdetail").forEach(d=>d.remove()); document.querySelectorAll('#view-inj .irow[aria-expanded="true"], #view-inj .iclr[aria-expanded="true"]').forEach(r=>r.setAttribute("aria-expanded","false")); }
 function renderInjuries(){
   const v=document.getElementById("view-inj");
   if (!INJ || !INJ.teams || !INJ.teams.length){ document.getElementById("ibody").innerHTML=`<p class="nempty">No injury report yet. It will appear after the next update.</p>`; return; }
   const bears=INJ.teams.find(t=>/chicago bears/i.test(t.team)) || INJ.teams[0];
   document.getElementById("iweek").textContent = INJ.week ? INJ.week.replace(/^WEEK/i,"Week").replace(/^PRESEASON WEEK/i,"Preseason week") : "";
-  const resNames={"Reserve/Injured":"Injured reserve","Reserve/Physically Unable to Perform":"PUP list (physically unable to perform)","Reserve/Non-Football Injury":"Non-football injury list","Practice Squad/Injured":"Practice squad, injured"};
-  const res=(INJ.reserves||[]).filter(r=>r.players.length && !/practice squad/i.test(r.list)).map(r=>`<div class="sec">${esc(resNames[r.list]||r.list)}</div>`+r.players.slice().sort((a,b)=>n(a.num)-n(b.num)).map(resRow).join("")).join("");
+  const resNames={"Reserve/Injured":"Injured Reserve - Inactive Players","Reserve/Physically Unable to Perform":"PUP list (physically unable to perform)","Reserve/Non-Football Injury":"Non-football injury list","Practice Squad/Injured":"Practice squad, injured"};
+  // Injured reserve is split in two: players who may come back this season, then those out for the season
+  // (reported season-ending, or ESPN doesn't project a return this season).
+  const seasonOut = pl => /season/i.test(returnInfo(pl));
+  const byNum = l => l.slice().sort((a,b)=>n(a.num)-n(b.num));
+  const res=(INJ.reserves||[]).filter(r=>r.players.length && !/practice squad/i.test(r.list)).map(r=>{
+    if (!/reserve\/injured/i.test(r.list)) return `<div class="sec">${esc(resNames[r.list]||r.list)}</div>`+byNum(r.players).map(resRow).join("");
+    const back=r.players.filter(pl=>!seasonOut(pl)), done=r.players.filter(seasonOut);
+    return (back.length?`<div class="sec">${esc(resNames[r.list])}</div>`+byNum(back).map(resRow).join(""):"")
+      + (done.length?`<div class="sec">Injured Reserve - Out for the Season</div>`+byNum(done).map(resRow).join(""):"");
+  }).join("");
   document.getElementById("ibody").innerHTML =
-    `<div class="ilist"><div class="sec">Bears game report${bears.players.length?` · ${bears.players.length} listed`:""}</div>${bears.players.length?injRows(bears.players,true):`<p class="nempty">No Bears players listed.</p>`}</div>`
+    (()=>{
+      const fin=reportFinal(bears.players), cleared=bears.players.filter(pl=>isCleared(pl,fin)), risk=bears.players.filter(pl=>!isCleared(pl,fin));
+      const clearedLine = cleared.length ? `<div class="icleared"><b>Cleared to play</b>${cleared.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(pl=>players[pl.slug]?`<button type="button" class="iclr" data-slug="${esc(pl.slug)}">${esc(pl.name)}</button>`:`<span>${esc(pl.name)}</span>`).join(", ")}</div>` : "";
+      return `<div class="ilist"><div class="sec">Bears Game Report - Active Roster</div>${risk.length?injRows(risk,true,fin):`<p class="nempty">${bears.players.length?"Everyone on this week's report is cleared to play.":"No Bears players listed."}</p>`}${clearedLine}</div>`;
+    })()
+    + ((INJ.others||[]).length?`<div class="ilist"><div class="sec">Other injuries · not on the official report yet</div>${INJ.others.slice().sort((a,b)=>n(a.num)-n(b.num)).map(otherRow).join("")}</div>`:"")
     + (res?`<div class="ilist">${res}</div>`:"");
 
   v.querySelectorAll(".irow.tap").forEach(b=>b.onclick=()=>{
@@ -1196,6 +1303,15 @@ function renderInjuries(){
     d.innerHTML=`<div class="face back mcard">${backHTML(players[b.dataset.slug])}</div><button class="mclose" type="button">✕ Close card</button>`;
     d.querySelector(".mclose").onclick=closeInjCard;
     b.parentNode.insertBefore(d,b.nextSibling); b.setAttribute("aria-expanded","true");
+  });
+  // Names in the "Cleared to play" line open the player's card under that line.
+  v.querySelectorAll(".iclr").forEach(b=>b.onclick=()=>{
+    if (b.getAttribute("aria-expanded")==="true") { closeInjCard(); return; }
+    closeInjCard();
+    const line=b.closest(".icleared"), d=document.createElement("div"); d.className="rdetail";
+    d.innerHTML=`<div class="face back mcard">${backHTML(players[b.dataset.slug])}</div><button class="mclose" type="button">✕ Close card</button>`;
+    d.querySelector(".mclose").onclick=closeInjCard;
+    line.parentNode.insertBefore(d,line.nextSibling); b.setAttribute("aria-expanded","true");
   });
 }
 
