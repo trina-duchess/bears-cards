@@ -422,10 +422,10 @@ html{background:#0B162A!important}body{min-height:100vh}
       <button class="tab" id="tab-sched" role="tab" aria-selected="true">Schedule</button>
       <button class="tab" id="tab-stand" role="tab" aria-selected="false">Standings</button>
       <button class="tab" id="tab-news" role="tab" aria-selected="false">News</button>
+      <button class="tab" id="tab-inj" role="tab" aria-selected="false">Injuries</button>
       <button class="tab" id="tab-cards" role="tab" aria-selected="false">Cards</button>
       <button class="tab" id="tab-roster" role="tab" aria-selected="false">Roster</button>
       <button class="tab" id="tab-chart" role="tab" aria-selected="false">Depth</button>
-      <button class="tab" id="tab-inj" role="tab" aria-selected="false">Injuries</button>
     </div>
   </div>
 </header>
@@ -1434,7 +1434,7 @@ document.getElementById("nwk-prev").onclick=()=>{ nflWeek--; renderNfl(); loadNf
 document.getElementById("nwk-next").onclick=()=>{ nflWeek++; renderNfl(); loadNflWeek(nflWeek); };
 setInterval(()=>{ if(!document.hidden && !document.getElementById("sched-nfl").hidden && nflWeek!=null && (NFL.weeks[nflWeek]||[]).some(g=>g.st==="in")) { nflLoaded[nflWeek]=0; loadNflWeek(nflWeek); } }, 30000);
 
-const VIEWS=["sched","stand","news","cards","roster","chart","inj"];
+const VIEWS=["sched","stand","news","inj","cards","roster","chart"];
 function tab(which){
   VIEWS.forEach(v=>{
     const on=v===which;
