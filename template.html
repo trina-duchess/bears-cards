@@ -287,6 +287,33 @@ h1 span{color:var(--orange)}
 @media (max-width:420px){.nimg{width:84px;height:60px}.nhead{font-size:15px}}
 
 /* Injuries view */
+.subtabs{display:flex;background:var(--chip);border-radius:10px;padding:3px;gap:3px}
+.subtabs button{flex:1;appearance:none;border:0;background:transparent;color:var(--muted);font-family:var(--f-label);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;padding:8px;border-radius:8px;cursor:pointer}
+.subtabs button[aria-selected="true"]{background:#0B162A;color:#fff}
+:root[data-theme="dark"] .subtabs button[aria-selected="true"]{background:var(--orange)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .subtabs button[aria-selected="true"]{background:var(--orange)}}
+.nwk{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.nwk div{text-align:center;display:flex;flex-direction:column}
+.nwk b{font-family:var(--f-display);font-weight:800;font-size:24px;text-transform:uppercase}
+.nwk span{font-size:13px;color:var(--muted)}
+.nwk button{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--fg);font-size:22px;line-height:1;width:44px;height:40px;border-radius:10px;cursor:pointer}
+.nwk button:disabled{opacity:.3;cursor:default}
+.nday{background:#0B162A;border-radius:12px;overflow:hidden}
+.nday h3{margin:0;font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;background:#C83803;padding:7px 14px}
+.ng{display:grid;grid-template-columns:72px minmax(0,1fr) 34px;gap:4px 10px;align-items:center;padding:9px 14px;border-top:1px solid rgba(255,255,255,.07);color:#C9D1E0}
+.ng:first-of-type{border-top:0}
+.ng.us{background:#13284A;box-shadow:inset 4px 0 0 #E2541B}
+.ng .nt{grid-row:1 / span 2;font-family:var(--f-label);font-weight:700;font-size:14px;color:#fff;line-height:1.2}
+.ng .nt small{display:block;font-weight:600;font-size:11px;color:#7F8BA6;letter-spacing:.06em;text-transform:uppercase}
+.ng .nt.live{color:#FF6B6B}
+.ng .tm{display:flex;align-items:center;gap:8px;min-width:0;font-size:15px;color:#fff;font-weight:600}
+.ng .tm img,.ng .tm i{width:22px;height:22px;flex:none;object-fit:contain;background:#fff;border-radius:50%;padding:2px;box-sizing:border-box}
+.ng .tm i{display:inline-grid;place-items:center;font-style:normal;font-size:8px;font-weight:700;color:#0B162A}
+.ng .tm b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ng .tm small{color:#AEB8CC;font-weight:400;font-size:13px;white-space:nowrap}
+.ng .tm em{font-style:normal;color:#7F8BA6;font-size:12px;font-weight:600;margin-right:-2px}
+.ng .sc{text-align:right;font-family:var(--f-label);font-weight:700;font-size:16px;color:#AEB8CC;font-variant-numeric:tabular-nums}
+.ng .sc.win{color:#fff}
 .stconf{font-family:var(--f-display);font-weight:800;font-size:18px;text-transform:uppercase;margin:6px 0 -4px;color:#0B162A}
 .sttab{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;background:#0B162A;color:#fff;border-radius:12px;overflow:hidden;font-variant-numeric:tabular-nums}
 .sttab caption{caption-side:top;text-align:left;font-family:var(--f-label);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fff;padding:7px 14px;background:#C83803;border-radius:12px 12px 0 0}
@@ -390,11 +417,19 @@ html{background:#0B162A!important}body{min-height:100vh}
 
 <div class="wrap">
   <section id="view-sched" style="display:flex;flex-direction:column;gap:14px">
+    <div class="subtabs" role="tablist"><button type="button" id="sub-bears" aria-selected="true">Bears</button><button type="button" id="sub-nfl" aria-selected="false">NFL</button></div>
+    <div id="sched-bears" style="display:flex;flex-direction:column;gap:14px">
     <div class="shead"><h2 id="stitle">Schedule</h2><span class="rec" id="srec"></span></div>
     <div class="strack" id="strack"></div>
     <button class="btn ghost snow" id="snow" type="button">Jump to next game</button>
     <div class="slist" id="slist"></div>
     <p class="snote">Times are Pacific. Game times can change when the NFL flexes the schedule. Live scores come from ESPN and refresh every 15 seconds during games.</p>
+    </div>
+    <div id="sched-nfl" hidden style="display:flex;flex-direction:column;gap:12px">
+      <div class="nwk"><button type="button" id="nwk-prev" aria-label="Previous week">‹</button><div><b id="nwk-title">Week</b><span id="nwk-dates"></span></div><button type="button" id="nwk-next" aria-label="Next week">›</button></div>
+      <div id="nfl-body" style="display:flex;flex-direction:column;gap:12px"></div>
+      <p class="snote">All times Pacific. Records are each team's current record. Scores fill in as games finish.</p>
+    </div>
   </section>
 
   <section id="view-stand" hidden style="flex-direction:column;gap:14px">
@@ -1191,6 +1226,67 @@ async function loadStandings(){
       document.getElementById("stupd").textContent="Updated "+fmt(new Date(),{hour:"numeric",minute:"2-digit"}); }
   } catch(e) {}
 }
+
+// ---------- Full NFL schedule (Schedule tab › NFL) ----------
+const NFL = DATA.nfl || {season:DATA.season, weeks:{}};
+let nflWeek=null; const nflLoaded={};
+function teamInfo(abbr){
+  let t=null; (STAND||[]).forEach(c=>c.divisions.forEach(d=>d.teams.forEach(x=>{ if(x.abbr===abbr) t=x; })));
+  const logo=(()=>{ let v=""; (DATA.standings||[]).forEach(c=>c.divisions.forEach(d=>d.teams.forEach(x=>{ if(x.abbr===abbr&&x.logoData) v=x.logoData; }))); return v || (t&&t.logo) || ""; })();
+  return { name:t?(t.short||t.name):abbr, rec:t?(t.w+"-"+t.l+(+t.t?"-"+t.t:"")):"", logo };
+}
+function currentNflWeek(){
+  const wk=Object.keys(NFL.weeks).map(Number).sort((a,b)=>a-b); if(!wk.length) return null;
+  const now=Date.now();
+  // The week stays current until the day after its last game.
+  for (const w of wk){ const last=Math.max(...NFL.weeks[w].map(g=>new Date(g.t).getTime())); if (now < last + 30*3600e3) return w; }
+  return wk[wk.length-1];
+}
+function nflTeamLine(abbr, score, won, at){
+  const t=teamInfo(abbr);
+  return `<span class="tm">${at?"<em>at</em>":""}${t.logo?`<img src="${esc(t.logo)}" alt="" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('i'),{textContent:'${esc(abbr)}'}))">`:`<i>${esc(abbr)}</i>`}<b>${esc(t.name)}</b>${t.rec?`<small>(${esc(t.rec)})</small>`:""}</span><span class="sc${won?" win":""}">${score??""}</span>`;
+}
+function renderNfl(){
+  const weeks=Object.keys(NFL.weeks).map(Number).sort((a,b)=>a-b), body=document.getElementById("nfl-body");
+  if(!weeks.length){ body.innerHTML=`<p class="nempty">The NFL schedule will appear after the next update.</p>`; return; }
+  if(nflWeek==null) nflWeek=currentNflWeek();
+  const games=(NFL.weeks[nflWeek]||[]).slice().sort((a,b)=>new Date(a.t)-new Date(b.t)||a.a.localeCompare(b.a));
+  document.getElementById("nwk-title").textContent=`Week ${nflWeek}`;
+  const d0=games[0]&&new Date(games[0].t), d1=games.length&&new Date(games[games.length-1].t);
+  document.getElementById("nwk-dates").textContent = d0 ? `${fmt(d0,{month:"short",day:"numeric"})} – ${fmt(d1,{month:"short",day:"numeric"})}` : "";
+  document.getElementById("nwk-prev").disabled = nflWeek<=weeks[0];
+  document.getElementById("nwk-next").disabled = nflWeek>=weeks[weeks.length-1];
+  const byDay={}; games.forEach(g=>{ const k=fmt(new Date(g.t),{weekday:"long",month:"short",day:"numeric"}); (byDay[k]||=[]).push(g); });
+  body.innerHTML=Object.entries(byDay).map(([day,list])=>`<div class="nday"><h3>${esc(day)}</h3>`+list.map(g=>{
+    const fin=g.st==="post", live=g.st==="in", has=fin||live;
+    const as=has?g.as:null, hs=has?g.hs:null;
+    const when = fin ? `Final<small>${esc(/OT/i.test(g.d||"")?"Overtime":"")}</small>` : live ? `${esc(g.d||"Live")}<small>Live</small>` : `${fmt(new Date(g.t),{hour:"numeric",minute:"2-digit"}).replace(":00 "," ")}<small>${fmt(new Date(g.t),{timeZoneName:"short"}).split(" ").pop()}</small>`;
+    return `<div class="ng${g.a==="CHI"||g.h==="CHI"?" us":""}"><span class="nt${live?" live":""}">${when}</span>${nflTeamLine(g.a,as,fin&&+as>+hs,false)}${nflTeamLine(g.h,hs,fin&&+hs>+as,true)}</div>`;
+  }).join("")+`</div>`).join("") || `<p class="nempty">No games this week.</p>`;
+}
+async function loadNflWeek(w){
+  // Refresh scores and times for the week on screen from ESPN (no more than once a minute).
+  if (nflLoaded[w] && Date.now()-nflLoaded[w]<60e3) return;
+  try {
+    const j=await getJSON(`${ESPN}/scoreboard?seasontype=2&week=${w}&dates=${NFL.season||DATA.season}`);
+    const games=(j.events||[]).map(ev=>{ const c=ev.competitions?.[0]||{}, H=(c.competitors||[]).find(x=>x.homeAway==="home")||{}, A=(c.competitors||[]).find(x=>x.homeAway==="away")||{}, st=c.status?.type||ev.status?.type||{};
+      return {t:c.date||ev.date, a:A.team?.abbreviation||"", h:H.team?.abbreviation||"", as:espnScore(A), hs:espnScore(H), st:st.state||"pre", d:st.shortDetail||""}; }).filter(g=>g.a&&g.h);
+    if (games.length){ NFL.weeks[w]=games; nflLoaded[w]=Date.now(); if (nflWeek===w) renderNfl(); }
+  } catch(e) {}
+}
+function showSub(which){
+  const nfl=which==="nfl";
+  document.getElementById("sub-bears").setAttribute("aria-selected",!nfl);
+  document.getElementById("sub-nfl").setAttribute("aria-selected",nfl);
+  document.getElementById("sched-bears").hidden=nfl; document.getElementById("sched-nfl").hidden=!nfl;
+  if (nfl){ renderNfl(); if(nflWeek!=null) loadNflWeek(nflWeek); loadStandings().then(()=>{ if(!document.getElementById("sched-nfl").hidden) renderNfl(); }); }
+  else goGame(schedCur,false);
+}
+document.getElementById("sub-bears").onclick=()=>showSub("bears");
+document.getElementById("sub-nfl").onclick=()=>showSub("nfl");
+document.getElementById("nwk-prev").onclick=()=>{ nflWeek--; renderNfl(); loadNflWeek(nflWeek); };
+document.getElementById("nwk-next").onclick=()=>{ nflWeek++; renderNfl(); loadNflWeek(nflWeek); };
+setInterval(()=>{ if(!document.hidden && !document.getElementById("sched-nfl").hidden && nflWeek!=null && (NFL.weeks[nflWeek]||[]).some(g=>g.st==="in")) { nflLoaded[nflWeek]=0; loadNflWeek(nflWeek); } }, 30000);
 
 const VIEWS=["sched","stand","news","cards","roster","chart","inj"];
 function tab(which){

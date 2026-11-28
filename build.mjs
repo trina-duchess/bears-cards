@@ -343,6 +343,16 @@ async function main() {
   // The app itself also pulls fresh ESPN stories every time it opens.
   const names = playerSearchNames(players);
   const nameRe = new RegExp("\\b(" + names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b");
+  // Google News search feed for a query; titles arrive as "Headline - Outlet".
+  const gnews = q => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
+  const OUTLETS = [[/profootballrumors|pro football rumors/i, "Pro Football Rumors"], [/nfl\.com/i, "NFL.com"], [/cbs/i, "CBS Sports"],
+    [/yahoo/i, "Yahoo Sports"], [/profootballtalk|nbc sports/i, "ProFootballTalk"]];
+  const gnTidy = n => {
+    const m = n.headline.match(/^(.*\S)\s+-\s+([^-]+)$/);
+    const outlet = m ? m[2].trim() : "";
+    const label = (OUTLETS.find(([re]) => re.test(outlet)) || [null, outlet || n.source])[1];
+    return { ...n, headline: m ? m[1] : n.headline, description: "", source: label };
+  };
   const NEWS_SOURCES = [
     { source: "ChicagoBears.com", url: "https://www.chicagobears.com/rss/news" },
     { source: "Sun-Times", url: "https://chicago.suntimes.com/rss/bears/index.xml" },
@@ -351,6 +361,12 @@ async function main() {
     { source: "Tribune", url: "https://news.google.com/rss/search?q=%22Chicago+Bears%22+site:chicagotribune.com+when:14d&hl=en-US&gl=US&ceid=US:en",
       tidy: n => ({ ...n, headline: n.headline.replace(/\s+-\s+Chicago Tribune$/, ""), description: "" }),
       keep: n => /\bBears\b|Ben Johnson/.test(n.headline) || nameRe.test(n.headline) },
+    // Roster moves (signings, cuts, practice squad call-ups) from Pro Football Rumors, via Google News.
+    { source: "Pro Football Rumors", url: gnews('"Bears" site:profootballrumors.com when:14d'),
+      tidy: gnTidy, keep: n => /\bBears\b/.test(n.headline) || nameRe.test(n.headline) },
+    // National coverage: only stories with "Bears" in the headline. Each story is labeled with its outlet.
+    { source: "National", url: gnews('"Bears" (site:nfl.com OR site:cbssports.com OR site:sports.yahoo.com OR site:profootballtalk.nbcsports.com) when:7d'),
+      tidy: gnTidy, keep: n => /\bBears\b/.test(n.headline) },
   ];
   let fresh = [];
   try {
@@ -441,10 +457,30 @@ async function main() {
     standings = S;
     for (const t of teams) records[String(t.name).toLowerCase()] = [t.w, t.l].join("-") + (+t.t ? `-${t.t}` : "");
   } catch (e) { console.warn("Full standings skipped:", e.message); }
+  // Full NFL regular-season schedule for the Schedule tab's NFL view (teams, kickoff, scores).
+  let nfl = previousData().nfl || { season: year, weeks: {} };
+  try {
+    const weeks = {};
+    for (let w = 1; w <= 18; w++) {
+      try {
+        const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?seasontype=2&week=${w}&dates=${year}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        const games = (j.events || []).map(ev => {
+          const c = ev.competitions?.[0] || {}, cs = c.competitors || [], st = c.status?.type || ev.status?.type || {};
+          const H = cs.find(x => x.homeAway === "home") || {}, A = cs.find(x => x.homeAway === "away") || {};
+          const sc = x => { const v = parseInt(x?.score?.displayValue ?? x?.score, 10); return isNaN(v) ? null : v; };
+          return { t: c.date || ev.date, a: A.team?.abbreviation || "", h: H.team?.abbreviation || "", as: sc(A), hs: sc(H), st: st.state || "pre", d: st.shortDetail || "" };
+        }).filter(g => g.a && g.h);
+        weeks[w] = games.length ? games : (nfl.weeks?.[w] || []);
+      } catch (e) { weeks[w] = nfl.weeks?.[w] || []; console.warn(`NFL week ${w} skipped:`, e.message); }
+    }
+    if (Object.values(weeks).flat().length >= 200) nfl = { season: year, weeks };
+  } catch (e) { console.warn("NFL schedule skipped:", e.message); }
   const data = {
     asOf, season: year, built: new Date().toISOString().slice(0, 10),
     slots: slots.map(s => ({ ...s, list: s.list.filter(x => keep[x]) })).filter(s => s.list.length),
-    players: keep, stats: statsKept, schedule, news, injuries, records, standings,
+    players: keep, stats: statsKept, schedule, news, injuries, records, standings, nfl,
   };
   const tpl = readFileSync(new URL("./template.html", import.meta.url), "utf8");
   if (!tpl.includes("__BEARS_DATA__")) throw new Error("template.html is missing the __BEARS_DATA__ marker");
